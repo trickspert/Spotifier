@@ -21,23 +21,26 @@ import com.getcapacitor.annotation.PermissionCallback;
 public class PlaybackPlugin extends Plugin {
 
     private static PlaybackPlugin instance;
+    private static boolean askedOnce = false;
 
     @Override
     public void load() {
         instance = this;
     }
 
-    /** Called by the notification buttons. */
-    static void emit(String action) {
+    /** Called by the Now Bar, lock screen, quick settings and notification controls. */
+    static void emit(String action, long position) {
         if (instance == null) return;
         JSObject data = new JSObject();
         data.put("action", action);
+        if (position >= 0) data.put("position", position);
         instance.notifyListeners("action", data);
     }
 
     @PluginMethod
     public void show(PluginCall call) {
-        if (Build.VERSION.SDK_INT >= 33 && getPermissionState("notifications") != PermissionState.GRANTED) {
+        if (Build.VERSION.SDK_INT >= 33 && !askedOnce && getPermissionState("notifications") != PermissionState.GRANTED) {
+            askedOnce = true;
             // ask once; music keeps playing either way, the notification just may not be visible
             requestPermissionForAlias("notifications", call, "afterPermission");
             return;
@@ -55,7 +58,11 @@ public class PlaybackPlugin extends Plugin {
             .setAction(PlaybackService.ACTION_UPDATE)
             .putExtra("title", call.getString("title", "Spotifier"))
             .putExtra("artist", call.getString("artist", ""))
-            .putExtra("playing", call.getBoolean("playing", true));
+            .putExtra("album", call.getString("album", ""))
+            .putExtra("artUrl", call.getString("artUrl", ""))
+            .putExtra("playing", call.getBoolean("playing", true))
+            .putExtra("position", (long) call.getDouble("position", 0.0).doubleValue())
+            .putExtra("duration", (long) call.getDouble("duration", 0.0).doubleValue());
         try {
             ContextCompat.startForegroundService(getContext(), i);
             call.resolve();

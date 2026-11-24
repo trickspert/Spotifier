@@ -59,12 +59,14 @@ export function haptic(strength = 'Light') {
 // "Now playing" notification that keeps music running in the background (android/.../PlaybackPlugin.java)
 const Playback = isNative ? registerPlugin('Playback') : null;
 let shown = null;
-export function showNowPlaying({ title, artist, playing }) {
+/** Publishes the current song to Android: Now Bar, status bar chip, lock screen, quick settings. */
+export function showNowPlaying({ title, artist, album = '', artUrl = '', playing, position = 0, duration = 0 }) {
   if (!Playback) return;
-  const key = `${title}|${artist}|${playing}`;
+  // resend when the song or play state changes, or the position drifts (Android extrapolates in between)
+  const key = `${title}|${artist}|${artUrl}|${playing}|${Math.round(position / 3000)}`;
   if (key === shown) return;
   shown = key;
-  Playback.show({ title, artist, playing }).catch(() => {});
+  Playback.show({ title, artist, album, artUrl, playing, position: Math.round(position), duration: Math.round(duration) }).catch(() => {});
 }
 export function hideNowPlaying() {
   if (!Playback || shown === null) return;
@@ -72,5 +74,5 @@ export function hideNowPlaying() {
   Playback.hide().catch(() => {});
 }
 export function onNowPlayingAction(cb) {
-  Playback?.addListener('action', ({ action }) => cb(action));
+  Playback?.addListener('action', ({ action, position }) => cb(action, position));
 }

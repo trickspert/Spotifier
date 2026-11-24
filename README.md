@@ -28,6 +28,7 @@ A Spotify player for **Android and the web**, designed in the style of iOS 26's 
 3. Press play. Spotifier tries to **play the music itself**, using Spotify's own player built into the app (Premium needed). Allow notifications when asked: a "now playing" notification keeps the music going when the screen is off, with play/pause and next buttons.
    - This is experimental. Spotify officially supports its built-in player on computers, so it may not work on every phone. If your phone can't, Spotifier says so and switches to controlling the **Spotify app** instead (keep it installed and logged in; if nothing plays, tap **Device → Open Spotify**).
    - You can choose either way in **You → Playback → Play inside Spotifier**.
+   - While music plays inside Spotifier it shows up like any music app: in Samsung's **Now Bar** and the status bar chip, on the lock screen, and in the quick-settings media player. Skip, play/pause and scrub the song from any of them.
 
 **Getting a fresh APK**
 - Every push to GitHub builds one automatically: open the repo's **Actions** tab, pick the latest **Android APK** run, and download **Spotifier-apk**.

@@ -205,13 +205,27 @@ function syncNowPlaying() {
     pausedAt ||= Date.now();
     if (Date.now() - pausedAt > 5 * 60_000) return hideNowPlaying();
   } else pausedAt = 0;
-  showNowPlaying({ title: s.track.name, artist: s.track.artists, playing: !s.paused });
+  showNowPlaying({
+    title: s.track.name,
+    artist: s.track.artists,
+    album: s.track.album,
+    artUrl: s.track.image,
+    playing: !s.paused,
+    position: S.player.position(),
+    duration: s.duration,
+  });
 }
-setInterval(syncNowPlaying, 30_000);
-onNowPlayingAction((a) => {
-  if (a === 'toggle') S.player?.toggle();
-  else if (a === 'next') S.player?.next();
-  else if (a === 'prev') S.player?.prev();
+setInterval(syncNowPlaying, 15_000);
+// controls from the Now Bar, status bar chip, lock screen, quick settings and the notification
+onNowPlayingAction((a, position) => {
+  const p = S.player;
+  if (!p) return;
+  if (a === 'play' && p.state.paused) p.toggle();
+  else if (a === 'pause' && !p.state.paused) p.toggle();
+  else if (a === 'toggle') p.toggle();
+  else if (a === 'next') p.next();
+  else if (a === 'prev') p.prev();
+  else if (a === 'seek' && position != null) p.seek(position);
 });
 
 async function onTrack(t) {
