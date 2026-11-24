@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 export const isNative = Capacitor.isNativePlatform();
 
@@ -48,4 +49,9 @@ export function setStatusBar(mode) {
 /** Wakes the Spotify app so it shows up as a device Spotifier can control. */
 export function openSpotifyApp() {
   location.href = 'spotify:';
+}
+
+/** A light tap of vibration, like iOS buttons (Android app only). */
+export function haptic(strength = 'Light') {
+  if (isNative) Haptics.impact({ style: ImpactStyle[strength] || ImpactStyle.Light }).catch(() => {});
 }

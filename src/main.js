@@ -4,7 +4,7 @@ import '@fontsource/fredoka/700.css';
 import '@fontsource/dm-serif-display/400.css';
 import '@fontsource/dm-serif-display/400-italic.css';
 import { icons, $, $$, esc, fmt, toast, greeting, clamp, eqBars } from './util.js';
-import { loadSettings, saveSettings, applyTheme, extractPalette, PRESETS, DEFAULTS, supportsRefraction } from './theme.js';
+import { loadSettings, saveSettings, applyTheme, extractPalette, artBrightness, PRESETS, DEFAULTS, supportsRefraction } from './theme.js';
 import { initFX, paintMelt } from './fx.js';
 import { initLens } from './lens.js';
 import { DemoPlayer, SpotifyPlayer } from './player.js';
@@ -12,7 +12,7 @@ import { LyricsView, getLyrics } from './lyrics.js';
 import { Spotify, normTrack, bestImage, playlistEntryTrack } from './api.js';
 import { handleCallback, isLoggedIn, login, logout, getClientId, setClientId, redirectUri, redirectLooksValid } from './auth.js';
 import { demoTracks, demoPlaylists } from './demo.js';
-import { isNative, NATIVE_REDIRECT, onAppUrl, closeBrowser, onBackButton, onResume, minimize, setStatusBar, openSpotifyApp } from './native.js';
+import { isNative, NATIVE_REDIRECT, onAppUrl, closeBrowser, onBackButton, onResume, minimize, setStatusBar, openSpotifyApp, haptic } from './native.js';
 
 if (isNative) document.documentElement.classList.add('native');
 
@@ -139,11 +139,12 @@ function makeRange(el, { onInput, onCommit, kind }) {
   ranges.push(r);
   return r;
 }
-makeRange($('.progress'), {
-  kind: 'seek',
-  onInput: (v) => ($('.t-pos').textContent = fmt(v * S.player.state.duration)),
-  onCommit: (v) => S.player.seek(v * S.player.state.duration),
-});
+for (const el of $$('.progress'))
+  makeRange(el, {
+    kind: 'seek',
+    onInput: (v) => ($('.t-pos').textContent = fmt(v * S.player.state.duration)),
+    onCommit: (v) => S.player.seek(v * S.player.state.duration),
+  });
 makeRange($('.volume'), { kind: 'volume', onInput: (v) => S.player.setVolume(v), onCommit: (v) => S.player.setVolume(v) });
 
 // ---------- player wiring ----------
@@ -205,8 +206,16 @@ async function onTrack(t) {
     el.dataset.text = el.textContent;
   });
   $$('.np-artist').forEach((el) => (el.textContent = t ? t.artists : 'Pick something from your library'));
-  $('.np-name').textContent = t?.name || 'Nothing playing';
-  $('.np-artist-small').textContent = t?.artists || 'Pick a song to start';
+  $$('.np-name').forEach((el) => (el.textContent = t?.name || 'Nothing playing'));
+  $$('.np-artist-small').forEach((el) => (el.textContent = t?.artists || 'Pick a song to start'));
+  const off = lyricOffset(t);
+  lyMain.setOffset(off);
+  lyImm.setOffset(off);
+  if (t && S.sleep?.endOfSong && S.sleep.track && S.sleep.track !== t.id) {
+    S.sleep = null;
+    if (!S.player.state.paused) S.player.toggle();
+    toast('Sleep timer: paused at the end of the song');
+  }
   $('.np-context').textContent = S.context;
   document.title = t ? `${t.name} · ${t.artists}` : 'Spotifier';
   if (newArt)
@@ -220,6 +229,7 @@ async function onTrack(t) {
   loadLyrics(t);
   refreshQueue();
   checkSaved();
+  if (newArt) artBrightness(t?.image).then((b) => t?.id === S.trackId && document.documentElement.classList.toggle('art-bright', b > 0.6));
   const pal = t?.image ? await extractPalette(t.image) : null;
   if (t?.id === S.trackId) {
     S.palette = pal;
@@ -319,6 +329,8 @@ function moreMenu() {
     <button class="row" data-act="share"><span class="row-icon">${icons.share}</span><span class="row-meta"><b>Share song</b></span></button>
     <button class="row" data-act="device"><span class="row-icon">${icons.device}</span><span class="row-meta"><b>Choose device</b></span></button>
     <button class="row" data-act="immersive-from-menu"><span class="row-icon">${icons.lyrics}</span><span class="row-meta"><b>Full screen lyrics</b></span></button>
+    <button class="row" data-act="lyrics-timing"><span class="row-icon">${icons.clock}</span><span class="row-meta"><b>Lyrics timing</b></span></button>
+    <button class="row" data-act="sleep"><span class="row-icon">${icons.moon}</span><span class="row-meta"><b>Sleep timer</b>${S.sleep ? '<span>On</span>' : ''}</span></button>
     <button class="row" data-act="settings"><span class="row-icon">${icons.sliders}</span><span class="row-meta"><b>Customize the look</b></span></button>
     <button class="pill wide" data-act="close-modal">Close</button>
   </div>`);
@@ -689,16 +701,97 @@ function closePlayer() {
   });
 }
 
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on && !wakeLock && navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen');
+    if (!on && wakeLock) {
+      await wakeLock.release();
+      wakeLock = null;
+    }
+  } catch {
+    /* not allowed right now */
+  }
+}
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && immersiveOpen() && keepAwake(true));
+
+let calmTimer;
+function wake() {
+  const imm = $('#immersive');
+  imm.classList.remove('calm');
+  clearTimeout(calmTimer);
+  calmTimer = setTimeout(() => immersiveOpen() && !S.player.state.paused && imm.classList.add('calm'), 3500);
+}
+['pointerdown', 'pointermove', 'wheel', 'keydown'].forEach((ev) => $('#immersive').addEventListener(ev, wake, { passive: true }));
+
 function toggleImmersive() {
   const open = !immersiveOpen();
   const src = playerOpen() ? $('#player .art-inner') : $('.mini-art');
-  const dst = $('#immersive .art-inner');
+  const dst = innerWidth >= 900 ? $('#immersive .art-inner') : $('.imm-thumb');
   const [from, to] = open ? [src, dst] : [dst, src];
   morph(from, to, () => {
     document.body.classList.toggle('imm-open', open);
     $('#immersive').setAttribute('aria-hidden', String(!open));
     if (open) lyImm.update(S.player.position());
   });
+  keepAwake(open);
+  if (open) wake();
+}
+
+// ---------- lyric timing (per song) and sleep timer ----------
+function lyricOffset(t) {
+  if (!t) return 0;
+  try {
+    return Number(localStorage.getItem(`spotifier.lyricOffset.${t.id}`)) || 0;
+  } catch {
+    return 0;
+  }
+}
+function setLyricOffset(delta) {
+  const t = S.player.state.track;
+  if (!t) return;
+  const v = delta === 0 ? 0 : Math.max(-5000, Math.min(5000, lyricOffset(t) + delta));
+  try {
+    localStorage.setItem(`spotifier.lyricOffset.${t.id}`, String(v));
+  } catch {
+    /* ignore */
+  }
+  lyMain.setOffset(v);
+  lyImm.setOffset(v);
+  lyricTimingMenu();
+}
+function lyricTimingMenu() {
+  const v = lyricOffset(S.player.state.track) / 1000;
+  showModal(`<div class="modal-card lg menu">
+    <h2 class="title">Lyrics timing</h2>
+    <p class="muted">If the words light up too early or too late, nudge them. Saved for this song.</p>
+    <div class="stepper"><button class="circle lg" data-offset="-250" aria-label="Earlier">−</button><b>${v > 0 ? '+' : ''}${v.toFixed(2)} s</b><button class="circle lg" data-offset="250" aria-label="Later">+</button></div>
+    <div class="modal-actions"><button class="pill" data-offset="0">Reset</button><button class="pill-white" data-act="close-modal">Done</button></div>
+  </div>`);
+}
+function sleepMenu() {
+  const left = S.sleep?.until ? Math.max(0, Math.round((S.sleep.until - Date.now()) / 60000)) : null;
+  showModal(`<div class="modal-card lg menu">
+    <h2 class="title">Sleep timer</h2>
+    <p class="muted">${S.sleep ? (S.sleep.endOfSong ? 'Pausing at the end of this song.' : `Pausing in ${left} min.`) : 'Music pauses by itself after:'}</p>
+    <div class="rows">${[15, 30, 45, 60].map((m) => `<button class="row" data-sleep="${m}"><span class="row-meta"><b>${m} minutes</b></span></button>`).join('')}
+      <button class="row" data-sleep="song"><span class="row-meta"><b>End of this song</b></span></button>
+      ${S.sleep ? '<button class="row" data-sleep="off"><span class="row-meta"><b>Turn off</b></span></button>' : ''}</div>
+    <button class="pill wide" data-act="close-modal">Close</button>
+  </div>`);
+}
+function setSleep(v) {
+  closeModal();
+  if (v === 'off') {
+    S.sleep = null;
+    return toast('Sleep timer off');
+  }
+  if (v === 'song') {
+    S.sleep = { endOfSong: true, track: S.trackId };
+    return toast('Pausing at the end of this song');
+  }
+  S.sleep = { until: Date.now() + Number(v) * 60000 };
+  toast(`Pausing in ${v} minutes`);
 }
 
 // ---------- sheet & modal ----------
@@ -799,6 +892,7 @@ function renderSettings() {
     </section>
     <section><h3>Lyrics</h3>
       ${seg('lyricsStyle', [['bubbles', 'Bubbles'], ['karaoke', 'Karaoke'], ['glow', 'Glow']])}
+      ${seg('lyricAlign', [['left', 'Left'], ['center', 'Centered']])}
       ${slider('lyricSize', 'Lyric size', 0.8, 1.5, 0.05, (v) => `${Math.round(v * 100)}%`)}
     </section>
     <section><h3>Account</h3>
@@ -863,6 +957,8 @@ const actions = {
   },
   'open-player': openPlayer,
   'close-player': closePlayer,
+  'lyrics-timing': lyricTimingMenu,
+  sleep: sleepMenu,
   immersive: toggleImmersive,
   'immersive-from-menu': () => {
     closeModal();
@@ -903,12 +999,20 @@ const actions = {
 
 document.addEventListener('click', (e) => {
   const t = e.target;
+  if (swallowClick) {
+    swallowClick = false;
+    e.preventDefault();
+    return;
+  }
+  let el;
   const act = t.closest('[data-act]');
+  if (t.closest('button, a, [role="button"]')) haptic();
   if (act) {
     e.preventDefault();
     return actions[act.dataset.act]?.(act, e);
   }
-  let el;
+  if ((el = t.closest('[data-offset]'))) return setLyricOffset(Number(el.dataset.offset));
+  if ((el = t.closest('[data-sleep]'))) return setSleep(el.dataset.sleep);
   if ((el = t.closest('[data-chip]'))) {
     S.chip = el.dataset.chip;
     return renderHome();
@@ -1008,7 +1112,12 @@ function loop(now) {
     const frac = dur ? clamp(pos / dur, 0, 1) : 0;
     if (now - lastBar > 100) {
       lastBar = now;
-      if (playerOpen()) for (const r of ranges) if (r.kind === 'seek' && !r.dragging) r.el.style.setProperty('--p', frac.toFixed(4));
+      if (playerOpen() || immersiveOpen()) for (const r of ranges) if (r.kind === 'seek' && !r.dragging) r.el.style.setProperty('--p', frac.toFixed(4));
+      if (S.sleep?.until && Date.now() > S.sleep.until) {
+        S.sleep = null;
+        if (!p.state.paused) p.toggle();
+        toast('Sleep timer: music paused');
+      }
       miniLine.style.transform = `scaleX(${frac.toFixed(4)})`;
     }
     const sec = Math.floor(pos / 1000);
@@ -1022,6 +1131,100 @@ function loop(now) {
   }
   requestAnimationFrame(loop);
 }
+
+// ---------- gestures ----------
+let swallowClick = false;
+
+/** Drag down to dismiss (Now Playing, full-screen lyrics), like an iOS sheet. */
+function swipeToClose(el, { canStart, onClose, handle }) {
+  let y0 = null, x0 = 0, dy = 0, dragging = false;
+  (handle || el).addEventListener('touchstart', (e) => {
+    if (!canStart(e)) return;
+    y0 = e.touches[0].clientY;
+    x0 = e.touches[0].clientX;
+    dy = 0;
+    dragging = false;
+  }, { passive: true });
+  (handle || el).addEventListener('touchmove', (e) => {
+    if (y0 == null) return;
+    dy = e.touches[0].clientY - y0;
+    const dx = Math.abs(e.touches[0].clientX - x0);
+    if (!dragging && (dy < 8 || dx > dy)) {
+      if (dy < -8 || dx > 12) y0 = null;
+      return;
+    }
+    dragging = true;
+    el.style.transition = 'none';
+    el.style.translate = `0 ${Math.max(0, dy * 0.85)}px`;
+    el.style.scale = String(1 - Math.min(0.06, dy / 4000));
+  }, { passive: true });
+  (handle || el).addEventListener('touchend', () => {
+    if (y0 == null) return;
+    y0 = null;
+    el.style.transition = '';
+    el.style.translate = '';
+    el.style.scale = '';
+    if (dragging && dy > 120) {
+      haptic();
+      onClose();
+    }
+  }, { passive: true });
+}
+swipeToClose($('#player'), { canStart: () => $('#player').scrollTop <= 0, onClose: closePlayer });
+swipeToClose($('#immersive'), { canStart: (e) => !e.target.closest('.lyrics-box'), onClose: toggleImmersive });
+
+// Mini player: swipe sideways to skip, swipe up to open
+(() => {
+  const mini = $('.mini');
+  let x0 = null, y0 = 0;
+  mini.addEventListener('touchstart', (e) => {
+    x0 = e.touches[0].clientX;
+    y0 = e.touches[0].clientY;
+  }, { passive: true });
+  mini.addEventListener('touchmove', (e) => {
+    if (x0 == null) return;
+    const dx = e.touches[0].clientX - x0;
+    if (Math.abs(dx) > 10) mini.querySelector('.mini-meta').style.translate = `${dx * 0.4}px 0`;
+  }, { passive: true });
+  mini.addEventListener('touchend', (e) => {
+    if (x0 == null) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+    x0 = null;
+    const meta = mini.querySelector('.mini-meta');
+    meta.style.translate = '';
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+      swallowClick = true;
+      haptic('Medium');
+      dx < 0 ? S.player.next() : S.player.prev();
+    } else if (dy < -40 && Math.abs(dy) > Math.abs(dx)) {
+      swallowClick = true;
+      openPlayer();
+    }
+  }, { passive: true });
+})();
+
+// Cover: tap for full-screen lyrics, double-tap to like
+(() => {
+  const art = $('.player-art');
+  let timer = null;
+  art.addEventListener('click', () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+      haptic('Medium');
+      const burst = art.querySelector('.like-burst');
+      burst.classList.remove('go');
+      void burst.offsetWidth;
+      burst.classList.add('go');
+      if (!S.saved) toggleSave();
+      return;
+    }
+    timer = setTimeout(() => {
+      timer = null;
+      toggleImmersive();
+    }, 260);
+  });
+})();
 
 // ---------- boot ----------
 async function startSpotify() {

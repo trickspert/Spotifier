@@ -37,9 +37,10 @@
 
     <!-- Full-screen Now Playing -->
     <section class="player" id="player" aria-label="Now playing" aria-hidden="true">
-      <div class="art-frame player-art" data-tilt="8" data-act="immersive" role="button" tabindex="0" aria-label="Show lyrics full screen">
+      <div class="art-frame player-art" data-tilt="8" role="button" tabindex="0" aria-label="Tap for lyrics, double tap to like">
         <div class="art-melt" aria-hidden="true"><canvas class="melt"></canvas></div>
         <div class="art-inner"><img class="np-art" alt="" /><div class="art-gloss"></div></div>
+        <span class="like-burst" aria-hidden="true"></span>
       </div>
       <header class="player-head">
         <button class="circle lg" data-act="close-player" aria-label="Close player" data-icon="chevronDown"></button>
@@ -87,21 +88,25 @@
 
     <!-- Full screen lyrics -->
     <div class="immersive" id="immersive" aria-hidden="true">
-      <div class="imm-left">
-        <div class="art-frame big">
-          <div class="art-melt" aria-hidden="true"><canvas class="melt"></canvas></div>
-          <div class="art-inner"><img class="np-art" alt="" /><div class="art-gloss"></div></div>
-        </div>
-        <h2 class="title np-title" data-text=""></h2>
-        <p class="np-artist"></p>
-        <div class="controls">
-          <button class="circle lg mid" data-act="prev" aria-label="Previous" data-icon="prev"></button>
-          <button class="circle lg big play-toggle" data-act="toggle" aria-label="Play"></button>
-          <button class="circle lg mid" data-act="next" aria-label="Next" data-icon="next"></button>
+      <div class="art-frame big" aria-hidden="true">
+        <div class="art-melt"><canvas class="melt"></canvas></div>
+        <div class="art-inner"><img class="np-art" alt="" /></div>
+      </div>
+      <header class="imm-head lg">
+        <img class="np-art imm-thumb" alt="" />
+        <span class="imm-meta"><b class="np-name">Nothing playing</b><span class="np-artist-small"></span></span>
+        <button class="circle lg small" data-act="lyrics-timing" aria-label="Lyrics timing" data-icon="clock"></button>
+        <button class="circle lg small" data-act="immersive" aria-label="Close lyrics" data-icon="chevronDown"></button>
+      </header>
+      <div class="lyrics-box big" id="lyrics-imm"></div>
+      <div class="imm-controls lg">
+        <div class="range imm-progress progress" role="slider" aria-label="Seek" tabindex="0"><div class="range-fill"></div></div>
+        <div class="imm-buttons">
+          <button class="icon-btn" data-act="prev" aria-label="Previous" data-icon="prev"></button>
+          <button class="icon-btn imm-play play-toggle" data-act="toggle" aria-label="Play"></button>
+          <button class="icon-btn" data-act="next" aria-label="Next" data-icon="next"></button>
         </div>
       </div>
-      <div class="lyrics-box big" id="lyrics-imm"></div>
-      <button class="circle lg imm-close" data-act="immersive" aria-label="Exit full screen lyrics" data-icon="chevronDown"></button>
     </div>
 
     <!-- Customize sheet -->

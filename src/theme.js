@@ -29,6 +29,7 @@ export const DEFAULTS = {
   lightStrength: 0.55,
   titleStyle: 'clean', // 'clean' | 'chrome' | 'bubbly' | 'serif'
   lyricsStyle: 'bubbles', // 'bubbles' | 'karaoke' | 'glow'
+  lyricAlign: 'left', // 'left' (like Apple Music) | 'center'
   lyricSize: 1,
 };
 
@@ -91,6 +92,7 @@ export function applyTheme(s, palette) {
   root.dataset.mode = s.mode;
   root.dataset.title = s.titleStyle;
   root.dataset.lyrics = s.lyricsStyle;
+  root.dataset.align = s.lyricAlign;
   root.dataset.backdrop = s.backdrop;
   root.dataset.cover = s.cover;
   root.dataset.tilt = s.tilt && s.motion > 0 ? 'on' : 'off';
@@ -178,4 +180,34 @@ export async function extractPalette(url) {
   const out = picks.map((p) => hslToHex(p.h, Math.max(0.6, Math.min(0.95, p.s * 1.3)), Math.max(0.58, Math.min(0.72, p.l + 0.12))));
   paletteCache.set(url, out);
   return out;
+}
+
+const brightCache = new Map();
+/**
+ * How bright a cover is where text sits over it (its lower half), 0..1.
+ * Used to make the glass a bit darker over bright covers so titles stay readable,
+ * the way iOS glass adapts to what's behind it.
+ */
+export async function artBrightness(url) {
+  if (!url) return 0;
+  if (brightCache.has(url)) return brightCache.get(url);
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.src = url;
+  let v = 0;
+  try {
+    await img.decode();
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 24;
+    const g = cv.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0, 24, 24);
+    const d = g.getImageData(0, 8, 24, 16).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+    v = sum / (d.length / 4);
+  } catch {
+    v = 0;
+  }
+  brightCache.set(url, v);
+  return v;
 }

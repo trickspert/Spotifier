@@ -6,20 +6,80 @@ import { lensFor } from './lens.js';
 
 const cache = new Map();
 
+const stampMs = (m, s) => (Number(m) * 60 + Number(String(s).replace(':', '.'))) * 1000;
+
 export function parseLRC(text) {
   const out = [];
   for (const raw of text.split(/\r?\n/)) {
     const stamps = [...raw.matchAll(/\[(\d{1,2}):(\d{1,2}(?:[.:]\d{1,3})?)\]/g)];
     if (!stamps.length) continue;
-    const line = raw.replace(/\[[^\]]*\]/g, '').trim();
+    const body = raw.replace(/\[[^\]]*\]/g, '');
+    // word-level timing, e.g. "<00:12.30> hello <00:12.80> world"
+    let words = null;
+    if (/<\d{1,2}:\d{1,2}(?:[.:]\d{1,3})?>/.test(body)) {
+      words = [];
+      for (const m of body.matchAll(/<(\d{1,2}):(\d{1,2}(?:[.:]\d{1,3})?)>([^<]*)/g)) {
+        for (const w of m[3].trim().split(/\s+/).filter(Boolean)) words.push({ text: w, s: stampMs(m[1], m[2]) });
+      }
+    }
+    const line = body.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
     for (const m of stamps) {
-      const t = (Number(m[1]) * 60 + Number(m[2].replace(':', '.'))) * 1000;
-      out.push({ t, text: line || '♪' });
+      const t = stampMs(m[1], m[2]);
+      out.push({ t, text: line || '♪', words: words?.length ? words : null });
     }
   }
   out.sort((a, b) => a.t - b.t);
   // Merge back-to-back instrumental markers
   return out.filter((l, i) => !(l.text === '♪' && out[i - 1]?.text === '♪'));
+}
+
+/**
+ * Estimates the beat length (ms) from when lines start: sung lines usually begin on the bar,
+ * so the typical gap between lines is a bar (or two). We fold it into a 4/4 beat at 70-170 BPM.
+ */
+export function estimateBeat(lines) {
+  const gaps = [];
+  for (let i = 0; i + 1 < lines.length; i++) {
+    const g = lines[i + 1].t - lines[i].t;
+    if (g > 700 && g < 12000 && lines[i].text !== '♪') gaps.push(g);
+  }
+  if (gaps.length < 4) return 500;
+  gaps.sort((a, b) => a - b);
+  let bar = gaps[gaps.length >> 1];
+  while (bar > 4400) bar /= 2;
+  while (bar < 1400) bar *= 2;
+  let beat = bar / 4;
+  while (60000 / beat < 70) beat /= 2;
+  while (60000 / beat > 170) beat *= 2;
+  return beat;
+}
+
+const syllables = (w) => Math.max(1, (w.toLowerCase().match(/[aeiouyàâäéèêëîïôöùûüœæ]+/g) || []).length);
+
+/** Start/end time (ms) of every word in a line: exact if the lyrics have it, otherwise estimated. */
+function timeWords(line, next, beat) {
+  const end = next ?? line.t + 4000;
+  if (line.words) {
+    return line.words.map((w, i) => ({ s: w.s, e: Math.max(w.s + 120, line.words[i + 1]?.s ?? Math.min(end, w.s + beat * 2)) }));
+  }
+  const words = line.text.split(/\s+/).filter(Boolean);
+  if (!words.length || line.text === '♪') return [];
+  const syl = words.map(syllables);
+  const total = syl.reduce((a, b) => a + b, 0);
+  const gap = end - line.t;
+  // roughly one syllable per eighth note, but always finish a little before the next line
+  const sing = Math.min(gap * 0.92, Math.max(gap * 0.5, total * (beat / 2)));
+  const grid = beat / 4; // snap word starts to sixteenth notes, so highlights land on the rhythm
+  let acc = 0;
+  let last = line.t;
+  return words.map((w, i) => {
+    let st = line.t + (sing * acc) / total;
+    st = Math.max(last, line.t + Math.round((st - line.t) / grid) * grid);
+    acc += syl[i];
+    const en = Math.max(st + 90, line.t + (sing * acc) / total);
+    last = st;
+    return { s: st, e: en };
+  });
 }
 
 async function lrclib(path) {
@@ -90,6 +150,11 @@ export class LyricsView {
     this.lastP = -1;
     this.box = null;
     this.glassReq = 0;
+    this.offset = 0; // lyric timing adjustment (ms), set per song by the user
+    this.timing = []; // per line: [{s, e}] for each word
+    this.wIdx = -1;
+    this.lastWp = -1;
+    this.beat = 500;
 
     this.track.addEventListener('click', (e) => {
       const b = e.target.closest('.lyric');
@@ -153,22 +218,17 @@ export class LyricsView {
     this.el.classList.toggle('synced', this.synced);
     this.el.classList.toggle('plain', !this.synced);
     this.track.style.transform = '';
+    this.beat = this.synced ? estimateBeat(lines) : 500;
+    this.el.style.setProperty('--beat', `${Math.round(this.beat)}ms`);
+    this.timing = this.synced ? lines.map((l, i) => timeWords(l, lines[i + 1]?.t, this.beat)) : [];
+    this.wIdx = -1;
     this.track.innerHTML = lines
       .map((l, i) => {
-        const words = l.text.split(/(\s+)/);
-        const total = l.text.length || 1;
-        let acc = 0;
-        const spans = words
-          .map((w) => {
-            if (/^\s+$/.test(w)) {
-              acc += w.length;
-              return w;
-            }
-            const s = acc / total, e2 = (acc + w.length) / total;
-            acc += w.length;
-            return `<span class="w" style="--w0:${s.toFixed(3)};--wd:${Math.max(0.001, e2 - s).toFixed(3)}">${esc(w)}</span>`;
-          })
-          .join('');
+        const spans = l.text
+          .split(/\s+/)
+          .filter(Boolean)
+          .map((w) => `<span class="w">${esc(w)}</span>`)
+          .join(' ');
         const inst = l.text === '♪' ? ' inst' : '';
         return `<button class="lyric${inst}" data-i="${i}" style="--i:${i}" tabindex="-1"><span class="lyric-text">${inst ? '<span class="dots"><i></i><i></i><i></i></span>' : spans}</span></button>`;
       })
@@ -179,14 +239,31 @@ export class LyricsView {
     else this.nodes.forEach((n) => n.style.setProperty('--d', 0));
   }
 
+  setOffset(ms) {
+    this.offset = ms;
+  }
+
   update(pos) {
     if (!this.synced || !this.lines.length) return;
+    pos += this.offset;
     let i = this.active >= 0 && this.lines[this.active].t <= pos ? this.active : -1;
     while (i + 1 < this.lines.length && this.lines[i + 1].t <= pos) i++;
     if (i !== this.active) {
       const prev = this.active;
+      if (prev >= 0) this.nodes[prev]?.querySelectorAll('.w').forEach((w) => w.classList.add('sung'));
       this.active = i;
       this.lastP = -1;
+      this.wIdx = -1;
+      this.lastWp = -1;
+      this.words = i >= 0 ? [...this.nodes[i].querySelectorAll('.w')] : [];
+      this.words.forEach((w) => {
+        w.classList.remove('sung', 'now');
+        w.style.removeProperty('--wp');
+      });
+      // restart the beat "breathing" so it lines up with the start of the line
+      this.glass.classList.remove('beat');
+      void this.glass.offsetWidth;
+      this.glass.classList.add('beat');
       this.nodes.forEach((n, k) => {
         n.classList.toggle('active', k === i);
         n.classList.toggle('past', k < i);
@@ -207,6 +284,29 @@ export class LyricsView {
       if (Math.abs(p - this.lastP) > 0.012 || p === 1) {
         this.lastP = p;
         this.nodes[i].style.setProperty('--p', p.toFixed(3));
+      }
+      // word-by-word highlight
+      const wt = this.timing[i];
+      if (wt?.length && this.words?.length) {
+        let w = this.wIdx;
+        while (w + 1 < wt.length && wt[w + 1].s <= pos) w++;
+        if (w !== this.wIdx) {
+          for (let k = Math.max(0, this.wIdx); k < w; k++) {
+            this.words[k]?.classList.remove('now');
+            this.words[k]?.classList.add('sung');
+          }
+          this.words[w]?.classList.add('now');
+          this.wIdx = w;
+          this.lastWp = -1;
+        }
+        if (w >= 0 && this.words[w]) {
+          const cur = wt[w];
+          const wp = Math.min(1, Math.max(0, (pos - cur.s) / Math.max(1, cur.e - cur.s)));
+          if (Math.abs(wp - this.lastWp) > 0.04 || (wp === 1 && this.lastWp !== 1)) {
+            this.lastWp = wp;
+            this.words[w].style.setProperty('--wp', wp.toFixed(2));
+          }
+        }
       }
     }
     if (this.manual && performance.now() > this.manualUntil) {

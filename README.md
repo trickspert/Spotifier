@@ -44,6 +44,15 @@ npm run dev
 
 Open **http://127.0.0.1:5173**, paste your Client ID, and connect. On a computer the music can play right in the browser (Spotify's Web Playback SDK, Premium only), or Spotifier can control Spotify on your phone or desktop app.
 
+## Tips
+
+- **Lyrics light up word by word.** When a song's lyrics only have line timing, Spotifier estimates the song's tempo and lines the words up with the beat. If the words run early or late, open **⋯ → Lyrics timing** (or the clock button in full-screen lyrics) and nudge them. It's saved per song.
+- **Swipe down** to close Now Playing or full-screen lyrics. **Swipe the mini player** left or right to skip, or up to open it.
+- **Tap the cover** for full-screen lyrics. **Double-tap** it to like the song.
+- **Sleep timer:** ⋯ → Sleep timer (15–60 minutes, or the end of the song).
+- Full-screen lyrics keep your screen on, and the controls fade away until you touch the screen.
+- In the **You** tab you can choose left-aligned or centered lyrics, the lyric style and size, and how strong the glass refraction is.
+
 ## If something goes wrong
 
 | What you see | Fix |
