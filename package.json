@@ -1,0 +1,15 @@
+{
+  "name": "spotifier",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A liquid-glass Spotify client with floating bubbles, reactive lighting and glass lyric bubbles.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "6.4.6"
+  }
+}

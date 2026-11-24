@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en" data-mode="dark" data-title="chrome" data-lyrics="bubbles">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#3d2f63" />
+    <title>Spotifier</title>
+    <link rel="icon" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Fredoka:wght@500;600;700&family=DM+Serif+Display:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="bg" aria-hidden="true"></div>
+
+    <header class="topbar glass lit">
+      <button class="icon-btn" data-act="menu" aria-label="Open your library"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <h1 class="app-title title" data-text="Spotifier">Spotifier</h1>
+      <div class="top-actions">
+        <button class="icon-btn" data-act="search" aria-label="Search" data-icon="search"></button>
+        <button class="icon-btn" data-act="settings" aria-label="Customize the look" data-icon="sliders"></button>
+      </div>
+    </header>
+
+    <main class="stage" id="stage" data-active="now">
+      <!-- QUEUE -->
+      <section class="pane glass lit" data-pane="queue" aria-label="Queue">
+        <div class="pane-scroll">
+          <div class="pane-head">
+            <div>
+              <p class="eyebrow">Up next</p>
+              <h2 class="title pane-title" data-text="Your Queue">Your Queue</h2>
+            </div>
+            <button class="text-btn" data-act="menu">Library</button>
+          </div>
+          <div id="queue-current"></div>
+          <div id="queue-list" class="cards"></div>
+          <div id="queue-banner"></div>
+        </div>
+      </section>
+
+      <!-- NOW PLAYING -->
+      <section class="pane glass lit" data-pane="now" aria-label="Now playing">
+        <div class="pane-scroll now-scroll">
+          <div class="art-frame" data-tilt="12">
+            <div class="art-inner">
+              <img class="np-art" alt="" />
+              <div class="art-gloss"></div>
+            </div>
+          </div>
+          <div class="np-meta">
+            <h2 class="title np-title" data-text="Nothing playing">Nothing playing</h2>
+            <p class="np-artist">Pick something from your library</p>
+          </div>
+          <div class="progress-block">
+            <div class="range progress" role="slider" aria-label="Seek" tabindex="0"><div class="range-fill"></div><div class="range-thumb"></div></div>
+            <div class="times"><span class="t-pos">0:00</span><span class="t-dur">0:00</span></div>
+          </div>
+          <div class="controls">
+            <button class="ctl" data-act="shuffle" aria-label="Shuffle" data-icon="shuffle"></button>
+            <button class="ctl" data-act="prev" aria-label="Previous" data-icon="prev"></button>
+            <button class="play-bubble" data-act="toggle" aria-label="Play"></button>
+            <button class="ctl" data-act="next" aria-label="Next" data-icon="next"></button>
+            <button class="ctl" data-act="repeat" aria-label="Repeat" data-icon="repeat"></button>
+          </div>
+          <div class="volume-row">
+            <button class="ctl small" data-act="mute" aria-label="Mute" data-icon="volume"></button>
+            <div class="range volume" role="slider" aria-label="Volume" tabindex="0"><div class="range-fill"></div><div class="range-thumb"></div></div>
+          </div>
+          <div class="action-pill">
+            <button data-act="save"><span data-icon="heart"></span><b>Save</b></button>
+            <button data-act="share"><span data-icon="link"></span><b>Share</b></button>
+            <button data-act="device"><span data-icon="device"></span><b>Device</b></button>
+          </div>
+          <p class="device-line"></p>
+        </div>
+      </section>
+
+      <!-- LYRICS -->
+      <section class="pane glass lit" data-pane="lyrics" aria-label="Lyrics">
+        <div class="mini-card">
+          <img class="np-art" alt="" />
+          <div class="mini-meta">
+            <b class="np-name">Nothing playing</b>
+            <span class="np-artist-small"></span>
+          </div>
+          <button class="icon-btn heart-btn" data-act="save" aria-label="Save" data-icon="heart"></button>
+          <button class="icon-btn" data-act="immersive" aria-label="Full screen lyrics" data-icon="expand"></button>
+        </div>
+        <div class="lyrics-box" id="lyrics-main"></div>
+        <div class="mini-player">
+          <div class="range mini-progress" role="slider" aria-label="Seek" tabindex="0"><div class="range-fill"></div><div class="range-thumb"></div></div>
+          <button class="ctl small" data-act="prev" aria-label="Previous" data-icon="prev"></button>
+          <button class="play-bubble small" data-act="toggle" aria-label="Play"></button>
+          <button class="ctl small" data-act="next" aria-label="Next" data-icon="next"></button>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar glass lit" aria-label="Views">
+      <button data-tab="queue"><span data-icon="library"></span>Queue</button>
+      <button data-tab="now" class="on"><span data-icon="play"></span>Now Playing</button>
+      <button data-tab="lyrics"><span data-icon="lyrics"></span>Lyrics</button>
+    </nav>
+
+    <!-- Library drawer -->
+    <aside class="drawer left glass lit" id="library" aria-label="Library" aria-hidden="true">
+      <div class="drawer-head">
+        <h2 class="title" data-text="Library">Library</h2>
+        <button class="icon-btn" data-act="close-drawers" aria-label="Close" data-icon="close"></button>
+      </div>
+      <div class="drawer-body" id="library-body"></div>
+    </aside>
+
+    <!-- Settings drawer -->
+    <aside class="drawer right glass lit" id="settings" aria-label="Customize" aria-hidden="true">
+      <div class="drawer-head">
+        <h2 class="title" data-text="Customize">Customize</h2>
+        <button class="icon-btn" data-act="close-drawers" aria-label="Close" data-icon="close"></button>
+      </div>
+      <div class="drawer-body" id="settings-body"></div>
+    </aside>
+
+    <!-- Search sheet -->
+    <div class="sheet glass lit" id="search" aria-hidden="true">
+      <div class="search-bar">
+        <span data-icon="search"></span>
+        <input id="search-input" type="search" placeholder="Songs, artists, albums, playlists" autocomplete="off" />
+        <button class="icon-btn" data-act="close-drawers" aria-label="Close search" data-icon="close"></button>
+      </div>
+      <div class="sheet-body" id="search-results"></div>
+    </div>
+
+    <!-- Full screen lyrics -->
+    <div class="immersive" id="immersive" aria-hidden="true">
+      <div class="imm-left">
+        <div class="art-frame big" data-tilt="14"><div class="art-inner"><img class="np-art" alt="" /><div class="art-gloss"></div></div></div>
+        <h2 class="title np-title" data-text=""></h2>
+        <p class="np-artist"></p>
+        <div class="controls">
+          <button class="ctl" data-act="prev" aria-label="Previous" data-icon="prev"></button>
+          <button class="play-bubble" data-act="toggle" aria-label="Play"></button>
+          <button class="ctl" data-act="next" aria-label="Next" data-icon="next"></button>
+        </div>
+      </div>
+      <div class="lyrics-box big" id="lyrics-imm"></div>
+      <button class="icon-btn imm-close" data-act="immersive" aria-label="Exit full screen" data-icon="close"></button>
+    </div>
+
+    <div class="scrim" data-act="close-drawers"></div>
+    <div class="modal-wrap" id="modal" aria-hidden="true"></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
