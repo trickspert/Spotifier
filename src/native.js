@@ -1,5 +1,5 @@
 // Android (Capacitor) helpers. On the web these do nothing or fall back to browser behavior.
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { StatusBar, Style } from '@capacitor/status-bar';
@@ -54,4 +54,23 @@ export function openSpotifyApp() {
 /** A light tap of vibration, like iOS buttons (Android app only). */
 export function haptic(strength = 'Light') {
   if (isNative) Haptics.impact({ style: ImpactStyle[strength] || ImpactStyle.Light }).catch(() => {});
+}
+
+// "Now playing" notification that keeps music running in the background (android/.../PlaybackPlugin.java)
+const Playback = isNative ? registerPlugin('Playback') : null;
+let shown = null;
+export function showNowPlaying({ title, artist, playing }) {
+  if (!Playback) return;
+  const key = `${title}|${artist}|${playing}`;
+  if (key === shown) return;
+  shown = key;
+  Playback.show({ title, artist, playing }).catch(() => {});
+}
+export function hideNowPlaying() {
+  if (!Playback || shown === null) return;
+  shown = null;
+  Playback.hide().catch(() => {});
+}
+export function onNowPlayingAction(cb) {
+  Playback?.addListener('action', ({ action }) => cb(action));
 }

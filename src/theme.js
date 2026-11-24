@@ -30,6 +30,7 @@ export const DEFAULTS = {
   titleStyle: 'clean', // 'clean' | 'chrome' | 'bubbly' | 'serif'
   lyricsStyle: 'bubbles', // 'bubbles' | 'karaoke' | 'glow'
   lyricAlign: 'left', // 'left' (like Apple Music) | 'center'
+  inAppPlayback: true, // Android: play inside Spotifier instead of through the Spotify app
   lyricSize: 1,
 };
 

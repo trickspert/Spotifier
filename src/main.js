@@ -12,7 +12,7 @@ import { LyricsView, getLyrics } from './lyrics.js';
 import { Spotify, normTrack, bestImage, playlistEntryTrack } from './api.js';
 import { handleCallback, isLoggedIn, login, logout, getClientId, setClientId, redirectUri, redirectLooksValid } from './auth.js';
 import { demoTracks, demoPlaylists } from './demo.js';
-import { isNative, NATIVE_REDIRECT, onAppUrl, closeBrowser, onBackButton, onResume, minimize, setStatusBar, openSpotifyApp, haptic } from './native.js';
+import { isNative, NATIVE_REDIRECT, onAppUrl, closeBrowser, onBackButton, onResume, minimize, setStatusBar, openSpotifyApp, haptic, showNowPlaying, hideNowPlaying, onNowPlayingAction } from './native.js';
 
 if (isNative) document.documentElement.classList.add('native');
 
@@ -152,7 +152,7 @@ function wirePlayer(p) {
   S.player = p;
   p.addEventListener('change', onPlayerChange);
   p.addEventListener('error', (e) => toast(e.detail, 'error', 6500));
-  p.addEventListener('ready', () => toast('Browser player connected. Pick a song to play here.', 'ok'));
+  p.addEventListener('ready', () => toast(isNative ? 'Ready to play right here in Spotifier.' : 'Browser player connected. Pick a song to play here.', 'ok'));
   onPlayerChange();
 }
 
@@ -188,10 +188,31 @@ function onPlayerChange() {
   if (changed('muted', s.volume === 0)) $$('[data-act="mute"]').forEach((b) => (b.innerHTML = s.volume === 0 ? icons.mute : icons.volume));
   const remote = S.player.remote;
   const line = s.device
-    ? `<span class="dot"></span>Playing on <b>${esc(s.device)}</b>${remote && !isNative ? ' · <button class="text-btn" data-act="play-here">Play here</button>' : ''}`
+    ? `<span class="dot"></span>Playing on <b>${esc(s.device)}</b>${remote && S.player.deviceId ? ' · <button class="text-btn" data-act="play-here">Play here</button>' : ''}`
     : '';
   if (changed('device', line)) $('.device-line').innerHTML = line;
+  syncNowPlaying();
 }
+
+// Android: while music plays inside Spotifier, show the "now playing" notification
+// (it also keeps the app alive in the background). Hidden after 5 minutes on pause.
+let pausedAt = 0;
+function syncNowPlaying() {
+  if (!isNative || !S.player) return;
+  const s = S.player.state;
+  if (!S.player.sdkActive || !s.track) return hideNowPlaying();
+  if (s.paused) {
+    pausedAt ||= Date.now();
+    if (Date.now() - pausedAt > 5 * 60_000) return hideNowPlaying();
+  } else pausedAt = 0;
+  showNowPlaying({ title: s.track.name, artist: s.track.artists, playing: !s.paused });
+}
+setInterval(syncNowPlaying, 30_000);
+onNowPlayingAction((a) => {
+  if (a === 'toggle') S.player?.toggle();
+  else if (a === 'next') S.player?.next();
+  else if (a === 'prev') S.player?.prev();
+});
 
 async function onTrack(t) {
   const art = t?.image || PLACEHOLDER;
@@ -895,6 +916,14 @@ function renderSettings() {
       ${seg('lyricAlign', [['left', 'Left'], ['center', 'Centered']])}
       ${slider('lyricSize', 'Lyric size', 0.8, 1.5, 0.05, (v) => `${Math.round(v * 100)}%`)}
     </section>
+    ${
+      isNative
+        ? `<section><h3>Playback</h3>
+      ${toggle('inAppPlayback', 'Play inside Spotifier')}
+      <p class="fine">On: music plays right here, no Spotify app needed (experimental, needs Premium). Off: Spotifier controls the Spotify app instead. Changing this restarts Spotifier.</p>
+    </section>`
+        : ''
+    }
     <section><h3>Account</h3>
       <p class="muted">${isDemo() ? 'You’re in demo mode.' : `Connected as <b>${esc(S.me?.display_name || 'you')}</b>.`}</p>
       <div class="modal-actions">${
@@ -919,6 +948,7 @@ $('#settings-body').addEventListener('input', (e) => {
   const v = el.type === 'checkbox' ? el.checked : el.type === 'range' ? Number(el.value) : el.value;
   updateSetting(key, v);
   if (key === 'bubbles') renderSettings();
+  if (key === 'inAppPlayback') setTimeout(() => location.reload(), 400);
   const em = el.closest('.slider')?.querySelector('em');
   if (em) {
     const pct = (x) => `${Math.round(x * 100)}%`;
@@ -1228,7 +1258,7 @@ swipeToClose($('#immersive'), { canStart: (e) => !e.target.closest('.lyrics-box'
 
 // ---------- boot ----------
 async function startSpotify() {
-  wirePlayer(new SpotifyPlayer());
+  wirePlayer(new SpotifyPlayer({ inApp: S.settings.inAppPlayback !== false }));
   try {
     S.me = await Spotify.me();
   } catch (e) {

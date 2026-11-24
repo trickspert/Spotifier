@@ -25,7 +25,9 @@ A Spotify player for **Android and the web**, designed in the style of iOS 26's 
 
 1. Copy `Spotifier.apk` to your phone and tap it. If Android asks, allow your browser or file manager to **install unknown apps**.
 2. Open Spotifier and paste your **Client ID** into the Connect screen, then tap **Connect Spotify** and log in.
-3. Make sure the **Spotify app is installed and logged in** on the phone. Spotifier controls it: the music plays through Spotify, while Spotifier shows the visuals and lyrics. If nothing plays, tap **Device → Open Spotify**, then come back.
+3. Press play. Spotifier tries to **play the music itself**, using Spotify's own player built into the app (Premium needed). Allow notifications when asked: a "now playing" notification keeps the music going when the screen is off, with play/pause and next buttons.
+   - This is experimental. Spotify officially supports its built-in player on computers, so it may not work on every phone. If your phone can't, Spotifier says so and switches to controlling the **Spotify app** instead (keep it installed and logged in; if nothing plays, tap **Device → Open Spotify**).
+   - You can choose either way in **You → Playback → Play inside Spotifier**.
 
 **Getting a fresh APK**
 - Every push to GitHub builds one automatically: open the repo's **Actions** tab, pick the latest **Android APK** run, and download **Spotifier-apk**.

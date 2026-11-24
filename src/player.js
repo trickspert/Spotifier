@@ -92,7 +92,7 @@ export class DemoPlayer extends BasePlayer {
 }
 
 export class SpotifyPlayer extends BasePlayer {
-  constructor() {
+  constructor({ inApp = true } = {}) {
     super();
     this.mode = 'spotify';
     this.deviceId = null; // our in-browser device
@@ -101,16 +101,17 @@ export class SpotifyPlayer extends BasePlayer {
     this.remote = null; // { id, name } when another device (phone, desktop app) is active
     this._volTimer = null;
     this.pending = null; // a play request waiting for the Spotify app to wake up (Android)
-    // Spotify's in-browser player doesn't run inside phone apps, so on Android we remote-control
-    // the Spotify app instead (Spotify Connect).
-    if (!isNative) this._initSDK();
+    // On Android this runs Spotify's own player inside Spotifier (experimental: Spotify officially
+    // supports it on computers). If it can't start, we fall back to remote-controlling the Spotify app.
+    this.sdkFailed = false;
+    if (!isNative || inApp) this._initSDK();
     this._pollLoop();
   }
 
   _initSDK() {
     window.onSpotifyWebPlaybackSDKReady = () => {
       const p = new window.Spotify.Player({
-        name: 'Spotifier (liquid glass)',
+        name: isNative ? 'Spotifier (this phone)' : 'Spotifier (liquid glass)',
         getOAuthToken: (cb) => getToken().then((t) => cb(t)),
         volume: this.state.volume,
       });
@@ -120,10 +121,19 @@ export class SpotifyPlayer extends BasePlayer {
       });
       p.addListener('not_ready', () => (this.deviceId = null));
       p.addListener('player_state_changed', (s) => this._fromSDK(s));
-      p.addListener('initialization_error', ({ message }) =>
-        this.error(`This browser can't play Spotify directly (${message}). You can still control the Spotify app on your phone or computer.`));
+      p.addListener('initialization_error', ({ message }) => {
+        this.sdkFailed = true;
+        this.error(
+          isNative
+            ? 'This phone can’t play Spotify inside Spotifier, so it will control the Spotify app instead.'
+            : `This browser can't play Spotify directly (${message}). You can still control the Spotify app on your phone or computer.`,
+        );
+      });
       p.addListener('authentication_error', ({ message }) => this.error(`Spotify login problem: ${message}. Try disconnecting and connecting again.`));
-      p.addListener('account_error', () => this.error('Playing in the browser needs Spotify Premium. Make sure you logged in with your Premium account.'));
+      p.addListener('account_error', () => {
+        this.sdkFailed = true;
+        this.error('Playing inside Spotifier needs Spotify Premium. Make sure you logged in with your Premium account.');
+      });
       p.addListener('playback_error', ({ message }) => this.error(`Playback error: ${message}`));
       p.connect();
       this.sdk = p;
@@ -229,7 +239,7 @@ export class SpotifyPlayer extends BasePlayer {
       try {
         await Spotify.play(body, this._target());
       } catch (e) {
-        if (e.status === 404 && isNative) return this._wakeSpotify(body);
+        if (e.status === 404 && isNative && !this.deviceId) return this._wakeSpotify(body);
         if (e.status !== 404 || !this.deviceId) throw e;
         await Spotify.transfer(this.deviceId);
         await sleep(500);
