@@ -23,7 +23,7 @@ function lensMap(W, H, r) {
   const ctx = cv.getContext('2d');
   const img = ctx.createImageData(W, H);
   const d = img.data;
-  const bezel = Math.max(8, Math.min(r * 0.95, 34, Math.min(W, H) * 0.48));
+  const bezel = Math.max(6, Math.min(r * 0.6, 22, Math.min(W, H) * 0.4));
   const hw = W / 2, hh = H / 2;
   const mag = 0.05; // center magnification
   for (let y = 0; y < H; y++) {
@@ -75,8 +75,9 @@ export function lensFor(W, H, r, opts = {}) {
   W = Math.max(8, Math.round(W / 2) * 2);
   H = Math.max(8, Math.round(H / 2) * 2);
   r = Math.round(Math.min(r, W / 2, H / 2));
-  const k0 = opts.k ?? 1;
-  const disperse = opts.disperse ?? W * H < 90_000; // rainbow rim only on buttons and bars
+  const k0 = (opts.k ?? 1) * (Math.min(W, H) < 32 ? 0.4 : 1);
+  const tiny = Math.min(W, H) < 32; // e.g. the slider knob: soft lens, no rainbow
+  const disperse = !tiny && (opts.disperse ?? W * H < 90_000); // faint rainbow rim only on buttons and bars
   const key = `${W}x${H}r${r}k${k0}${disperse ? 'd' : ''}`;
   if (ready.has(key)) return ready.get(key);
   const p = (async () => {
@@ -89,7 +90,7 @@ export function lensFor(W, H, r, opts = {}) {
     const disp = (k, res) =>
       `<feDisplacementMap data-lens data-k="${k * k0}" in="SourceGraphic" in2="map" scale="${scale * k * k0}" xChannelSelector="R" yChannelSelector="G" result="${res}"/>`;
     const body = disperse
-      ? `${map}${disp(1.06, 'dr')}${disp(1, 'dg')}${disp(0.94, 'db')}
+      ? `${map}${disp(1.018, 'dr')}${disp(1, 'dg')}${disp(0.982, 'db')}
          <feColorMatrix in="dr" type="matrix" values="1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0" result="r"/>
          <feColorMatrix in="dg" type="matrix" values="0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1 0" result="g"/>
          <feColorMatrix in="db" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0" result="b"/>

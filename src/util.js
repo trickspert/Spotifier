@@ -55,7 +55,7 @@ export const icons = {
   volume: stroke('M11 5 6.5 9H3v6h3.5L11 19V5zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13'),
   mute: stroke('M11 5 6.5 9H3v6h3.5L11 19V5zM22 9l-6 6M16 9l6 6'),
   lyrics: stroke('M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4h0A1.5 1.5 0 0 1 4 14.5zM8 8h8M8 11.5h5'),
-  expand: stroke('M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7'),
+  expand: svg('<path d="M14.5 4.5h5v5M9.5 19.5h-5v-5M19.5 4.5l-5.75 5.75M4.5 19.5l5.75-5.75" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'),
   close: stroke('M6 6l12 12M18 6 6 18'),
   home: stroke('M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z'),
   search: stroke('M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.6-4.6'),

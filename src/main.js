@@ -548,7 +548,7 @@ function renderHome() {
           }</div>`
         : ''
     }
-    ${chip === 'recent' ? `<div class="card lg rows">${S.recent.map((t, i) => trackRow(t, i, { attr: 'data-ri' })).join('') || '<p class="muted pad">Nothing played yet.</p>'}</div>` : ''}
+    ${chip === 'recent' ? `<div class="list rows">${S.recent.map((t, i) => trackRow(t, i, { attr: 'data-ri' })).join('') || '<p class="muted pad">Nothing played yet.</p>'}</div>` : ''}
   `);
 }
 
@@ -557,7 +557,7 @@ function renderLibrary() {
     <h1 class="title page-title">Library</h1>
     <button class="quick lg wide" data-open-liked><span class="liked-art">${icons.heart}</span><span><b>Liked Songs</b><small>${isDemo() ? 'Songs you save in the demo' : 'Your saved songs'}</small></span></button>
     <h2 class="section">Playlists</h2>
-    <div class="card lg rows">${
+    <div class="list rows">${
       S.playlists
         .map(
           (p) => `<button class="row" data-open-playlist="${esc(p.id)}">
@@ -623,7 +623,7 @@ async function runSearch(q) {
       )
       .join('')}</div>`;
   out.innerHTML =
-    (tracks.length ? `<h2 class="section">Songs</h2><div class="card lg rows">${tracks.map((t, i) => trackRow(t, i, { attr: 'data-si' })).join('')}</div>` : '') +
+    (tracks.length ? `<h2 class="section">Songs</h2><div class="list rows">${tracks.map((t, i) => trackRow(t, i, { attr: 'data-si' })).join('')}</div>` : '') +
     (artists.length ? `<h2 class="section">Artists</h2>${squares(artists, (a) => `data-artist="${esc(a.name)}"`, true)}` : '') +
     (albums.length ? `<h2 class="section">Albums</h2>${squares(albums, (a) => `data-open-album="${esc(a.id)}"`)}` : '') +
     (playlists.length ? `<h2 class="section">Playlists</h2>${squares(playlists, (p) => `data-open-playlist="${esc(p.id)}"`)}` : '') ||
@@ -662,7 +662,7 @@ async function renderCollection(kind, id, my) {
         </div>
       </div>
       ${info.note ? `<p class="note">${esc(info.note)}</p>` : ''}
-      ${info.tracks.length ? `<div class="card lg rows tracklist">${info.tracks.map((t, i) => trackRow(t, i, { num: info.type === 'Album', art: info.type !== 'Album' })).join('')}</div>` : ''}
+      ${info.tracks.length ? `<div class="list rows tracklist">${info.tracks.map((t, i) => trackRow(t, i, { num: info.type === 'Album', art: info.type !== 'Album' })).join('')}</div>` : ''}
     </div>`);
   const cm = $('.coll-melt');
   if (cm) paintMelt(cm, info.image);

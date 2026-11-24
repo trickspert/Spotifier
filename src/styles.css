@@ -170,6 +170,8 @@ svg { display: block; }
 .circle.on { color: #0e0e13; background: rgba(255, 255, 255, 0.92); }
 [data-mode='light'] .circle.on { color: #fff; background: rgba(14, 14, 19, 0.88); }
 .circle-spacer { width: 44px; }
+.circle.tiny { width: 36px; height: 36px; }
+.circle.tiny svg { width: 17px; height: 17px; }
 .icon-btn {
   width: 42px; height: 42px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%;
   background: none; color: var(--text); transition: scale 0.4s var(--spring), background 0.2s;
@@ -290,7 +292,9 @@ svg { display: block; }
 }
 .row:hover { background: var(--hover); }
 .row:active { background: var(--hover); scale: 0.99; }
-.card.rows .row + .row::before { content: ''; position: absolute; left: 14px; right: 14px; top: 0; height: 1px; background: var(--hair); }
+.list { margin: 0 -10px; }
+.list .row + .row::before { content: ''; position: absolute; left: 68px; right: 10px; top: 0; height: 1px; background: var(--hair); }
+.list .row:has(.row-num) + .row::before { left: 44px; }
 .row img { width: 46px; height: 46px; flex: none; border-radius: 10px; object-fit: cover; }
 .row-num { width: 22px; flex: none; text-align: center; font-size: 14px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .row-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -441,11 +445,13 @@ svg { display: block; }
 .controls { display: flex; align-items: center; justify-content: space-between; }
 .volume-row { display: flex; align-items: center; gap: 8px; }
 @media (pointer: coarse) { .volume-row { display: none; } }
-.card-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 4px 8px; }
-.card-head b { font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
-.lyrics-card { padding: 12px 10px 6px; }
-.lyrics-card .lyrics-box { height: 240px; }
-.upnext { padding: 12px 6px 6px; }
+/* plain sections: a quiet heading, content straight on the backdrop (no box inside the screen) */
+.section-block { margin-top: 10px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; min-height: 36px; padding: 0 2px; }
+.card-head b { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-2); }
+.lyrics-card .lyrics-box { height: 250px; margin: 0 -14px; }
+.upnext .rows { margin: 4px -10px 0; }
+.upnext .row + .row::before { content: ''; position: absolute; left: 68px; right: 10px; top: 0; height: 1px; background: var(--hair); }
 .device-line { margin: 0; display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-2); }
 .device-line b { color: var(--text); font-weight: 600; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c3); box-shadow: 0 0 10px var(--c3); }
