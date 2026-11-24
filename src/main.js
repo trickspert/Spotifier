@@ -196,10 +196,14 @@ function onPlayerChange() {
   if (!vol.dragging && changed('volume', s.volume)) vol.el.style.setProperty('--p', s.volume);
   if (changed('muted', s.volume === 0)) $$('[data-act="mute"]').forEach((b) => (b.innerHTML = s.volume === 0 ? icons.mute : icons.volume));
   const remote = S.player.remote;
-  const line = s.device
-    ? `<span class="dot"></span>Playing on <b>${esc(s.device)}</b>${remote && S.player.deviceId ? ' · <button class="text-btn" data-act="play-here">Play here</button>' : ''}`
-    : '';
-  if (changed('device', line)) $('.device-line').innerHTML = line;
+  // a small glass light at the bottom of Now Playing; tap it to pick a device
+  if (changed('device', `${s.device}|${!!remote}`)) {
+    const light = $('.device-light');
+    light.hidden = !s.device;
+    light.classList.toggle('remote', !!remote);
+    light.title = s.device ? `Playing on ${s.device}` : '';
+    light.setAttribute('aria-label', s.device ? `Playing on ${s.device}. Choose device` : 'Choose device');
+  }
   syncNowPlaying();
 }
 

@@ -452,8 +452,17 @@ svg { display: block; }
 .lyrics-card .lyrics-box { height: 250px; margin: 0 -14px; }
 .upnext .rows { margin: 4px -10px 0; }
 .upnext .row + .row::before { content: ''; position: absolute; left: 68px; right: 10px; top: 0; height: 1px; background: var(--hair); }
-.device-line { margin: 0; display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-2); }
-.device-line b { color: var(--text); font-weight: 600; }
+/* "Playing on…" as just a light: a little glass capsule with a glowing dot */
+.device-light { align-self: center; display: grid; place-items: center; width: 46px; height: 26px; margin-top: 8px; padding: 0; border-radius: 999px; }
+.device-light[hidden] { display: none; }
+.device-light i {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: color-mix(in srgb, var(--c3) 70%, white);
+  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--c3) 90%, transparent), 0 0 16px 4px color-mix(in srgb, var(--c3) 45%, transparent);
+}
+.device-light.remote i { background: color-mix(in srgb, var(--c1) 70%, white); box-shadow: 0 0 6px 1px var(--c1), 0 0 16px 4px color-mix(in srgb, var(--c1) 45%, transparent); }
+.is-playing .device-light i { animation: glow 2.4s ease-in-out infinite; }
+@keyframes glow { 50% { opacity: 0.55; scale: 0.85; } }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c3); box-shadow: 0 0 10px var(--c3); }
 
 /* sliders: thin track, glass capsule thumb */
@@ -574,9 +583,11 @@ svg { display: block; }
 .sheet, .modal-card { --glass: 0.95; --blur: 30px; }
 .sheet {
   position: fixed; z-index: 31; left: 8px; right: 8px; bottom: calc(var(--sab) + 8px); max-height: calc(88dvh - var(--sat));
-  display: flex; flex-direction: column; border-radius: 34px; translate: 0 110%; transition: translate 0.6s var(--spring-soft);
+  display: flex; flex-direction: column; border-radius: 34px;
+  translate: 0 calc(100% + var(--sab) + 60px); visibility: hidden;
+  transition: translate 0.6s var(--spring-soft), visibility 0s 0.6s;
 }
-.sheet.open { translate: 0 0; }
+.sheet.open { translate: 0 0; visibility: visible; transition: translate 0.6s var(--spring-soft), visibility 0s; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 14px 6px 24px; }
 .sheet-head h2 { margin: 0; font-size: 26px; }
 .sheet-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 22px 24px; scrollbar-width: none; }
@@ -617,8 +628,8 @@ input[type='range']::-moz-range-thumb { width: 28px; height: 28px; border: 0; bo
 .toggle input:focus-visible + i { outline: 2px solid var(--c1); outline-offset: 3px; }
 .title-preview { margin: 8px 0 0; font-size: 30px; text-align: center; }
 
-.modal-wrap { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, 0.45); opacity: 0; pointer-events: none; transition: opacity 0.3s; }
-.modal-wrap.open { opacity: 1; pointer-events: auto; }
+.modal-wrap { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, 0.45); opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.3s, visibility 0s 0.3s; }
+.modal-wrap.open { opacity: 1; pointer-events: auto; visibility: visible; transition: opacity 0.3s, visibility 0s; }
 .modal-card { width: min(520px, 100%); max-height: calc(100dvh - 32px - var(--sat)); overflow-y: auto; padding: 26px; border-radius: 34px; scale: 0.95; transition: scale 0.5s var(--spring); scrollbar-width: none; }
 .modal-wrap.open .modal-card { scale: 1; }
 .modal-card h2 { margin: 4px 0 10px; font-size: 28px; }
