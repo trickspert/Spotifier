@@ -7,6 +7,7 @@ import { getToken } from './auth.js';
 import { Spotify, normTrack } from './api.js';
 import { demoTracks } from './demo.js';
 import { clamp, sleep } from './util.js';
+import { isNative, openSpotifyApp } from './native.js';
 
 class BasePlayer extends EventTarget {
   constructor() {
@@ -99,7 +100,10 @@ export class SpotifyPlayer extends BasePlayer {
     this.sdkActive = false; // true when this browser is the device playing
     this.remote = null; // { id, name } when another device (phone, desktop app) is active
     this._volTimer = null;
-    this._initSDK();
+    this.pending = null; // a play request waiting for the Spotify app to wake up (Android)
+    // Spotify's in-browser player doesn't run inside phone apps, so on Android we remote-control
+    // the Spotify app instead (Spotify Connect).
+    if (!isNative) this._initSDK();
     this._pollLoop();
   }
 
@@ -191,7 +195,8 @@ export class SpotifyPlayer extends BasePlayer {
     try {
       await fn();
     } catch (e) {
-      if (e.status === 404) this.error('No active Spotify device. Wait a moment for the browser player to connect, or open Spotify on your phone or computer.');
+      if (e.status === 404)
+        this.error(isNative ? 'Spotify isn’t awake yet. Tap Device → Open Spotify, then come back.' : 'No active Spotify device. Wait a moment for the browser player to connect, or open Spotify on your phone or computer.');
       else if (e.status === 403) this.error('Spotify refused that action. Playback control requires Spotify Premium.');
       else this.error(e.message);
     }
@@ -213,12 +218,36 @@ export class SpotifyPlayer extends BasePlayer {
       try {
         await Spotify.play(body, this._target());
       } catch (e) {
+        if (e.status === 404 && isNative) return this._wakeSpotify(body);
         if (e.status !== 404 || !this.deviceId) throw e;
         await Spotify.transfer(this.deviceId);
         await sleep(500);
         await Spotify.play(body, this.deviceId);
       }
     });
+  }
+
+  /** Android: open the Spotify app so it registers as a device, then play when the user comes back. */
+  _wakeSpotify(body) {
+    this.pending = body;
+    this.error('Opening Spotify so it can play. Come back to Spotifier and your song will start.');
+    setTimeout(openSpotifyApp, 900);
+  }
+
+  /** Called when the Android app comes back to the foreground. */
+  async onResume() {
+    const body = this.pending;
+    this.pending = null;
+    if (body) {
+      try {
+        const { devices = [] } = (await Spotify.devices()) || {};
+        const d = devices.find((x) => x.is_active) || devices.find((x) => x.type === 'Smartphone') || devices[0];
+        if (d) await Spotify.play(body, d.id);
+      } catch (e) {
+        this.error(e.message);
+      }
+    }
+    setTimeout(() => this.refresh().catch(() => {}), body ? 800 : 0);
   }
 
   /** Move playback from your phone/desktop to this browser. */

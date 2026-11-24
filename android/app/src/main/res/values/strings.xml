@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Spotifier</string>
+    <string name="title_activity_main">Spotifier</string>
+    <string name="package_name">com.spotifier.glass</string>
+    <string name="custom_url_scheme">com.spotifier.glass</string>
+</resources>

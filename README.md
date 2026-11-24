@@ -1,18 +1,39 @@
-# Spotifier ✦ liquid glass music player
+# Spotifier: a Liquid Glass music player
 
-A Spotify player with a liquid-glass look: floating, refracting glass panels; soap bubbles you can pop;
-lighting that follows your cursor; chrome titles; and lyrics that float as glass bubbles and change color as each line is sung.
+A Spotify player for **Android and the web**, designed in the style of iOS 26's Liquid Glass:
 
-- **Queue, Now Playing, Lyrics** as three floating glass panels side by side on a computer, or switched with a tab bar on a phone
-- **Liquid glass refraction:** the panels bend the light behind them (Chrome, Edge, Brave, Arc and Opera; other browsers get frosted glass)
-- **Album-reactive colors:** the background aurora (or the whole UI) takes its colors from the album art
-- **Lyric bubbles:** synced lyrics with a liquid fill that sweeps through each line. You can switch to *Karaoke* (words fill as they're sung) or *Glow*. Click any line to jump to it.
-- **Full-screen lyrics:** press the ⤢ button or the `L` key
-- **Customize everything** (sliders icon, top right): six themes, dark/light mode, your own colors, refraction, frost, panel solidity, roundness, phone-style rims, tilt, motion, cursor light, bubble count, title style (Chrome / Bubbly / Serif), lyric style and size
-- **Real playback** in the browser through the Spotify Web Playback SDK (Premium), or remote control of the Spotify app on your phone or computer
-- **Demo mode** with made-up songs, so you can try everything before connecting
+- **Round glass "bubble" buttons and pill bars** that really bend what's behind their edges (lens refraction), with bright rims and a soft squish when you press them
+- **The album cover melts into the screen.** Now Playing shows the cover edge to edge, dissolving into a slowly swirling backdrop made from the cover itself. Tapping the cover morphs it into full-screen lyrics.
+- **Lyric bubbles:** the line being sung becomes a glass bubble whose words shift through the album's colors (also *Karaoke* and *Glow* styles). Tap any line to jump there.
+- **Clean, modern layout:** home with quick picks and big cards, a library, search, album and playlist pages, and a floating glass mini player and tab bar
+- **Customize it** (the *You* tab): themes, dark/light mode, colors that follow the album art, refraction strength, frost, glass tint, roundness, motion, cursor light, optional floating soap bubbles, and title and lyric styles
+- **Demo mode** with made-up songs, so you can try it before connecting
 
-## 1. Run it
+---
+
+## 1. Create your Spotify app (once, about 2 minutes)
+
+1. Go to **https://developer.spotify.com/dashboard** and log in with your **Spotify Premium** account. Accept the developer terms if asked.
+2. Press **Create app**. Give it any name and description.
+3. Under **Redirect URIs** add both of these, exactly, pressing **Add** after each:
+   - `com.spotifier.glass://callback` (for the Android app)
+   - `http://127.0.0.1:5173/` (for the computer version; use `127.0.0.1`, because Spotify no longer allows `localhost`)
+4. Under **Which API/SDKs are you planning to use?** tick **Web API** and **Web Playback SDK**. Accept and **Save**.
+5. Open your app's **Settings** and copy the **Client ID**. You'll paste it into Spotifier.
+
+## 2a. Android
+
+1. Copy `Spotifier.apk` to your phone and tap it. If Android asks, allow your browser or file manager to **install unknown apps**.
+2. Open Spotifier and paste your **Client ID** into the Connect screen, then tap **Connect Spotify** and log in.
+3. Make sure the **Spotify app is installed and logged in** on the phone. Spotifier controls it: the music plays through Spotify, while Spotifier shows the visuals and lyrics. If nothing plays, tap **Device → Open Spotify**, then come back.
+
+**Getting a fresh APK**
+- Every push to GitHub builds one automatically: open the repo's **Actions** tab, pick the latest **Android APK** run, and download **Spotifier-apk**.
+- Or build it yourself with Node.js 22, JDK 21 and the Android SDK (or Android Studio) installed: `npm install`, then `npm run android:apk`. The APK appears at `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+It's a debug-signed APK for personal use. If you build it on a different computer, uninstall the old one first, because Android only updates apps signed with the same key.
+
+## 2b. Computer (web)
 
 You need [Node.js](https://nodejs.org) 18 or newer.
 
@@ -21,61 +42,42 @@ npm install
 npm run dev
 ```
 
-Open **http://127.0.0.1:5173**. Use that address, **not** `localhost`: Spotify doesn't allow `localhost` for logins anymore.
+Open **http://127.0.0.1:5173**, paste your Client ID, and connect. On a computer the music can play right in the browser (Spotify's Web Playback SDK, Premium only), or Spotifier can control Spotify on your phone or desktop app.
 
-## 2. Connect your Spotify Premium account
-
-You only do this once. It takes about two minutes.
-
-1. Go to **https://developer.spotify.com/dashboard** and log in with your Spotify Premium account. Accept the developer terms if asked.
-2. Press **Create app**.
-   - **App name / description:** anything, e.g. `Spotifier`
-   - **Redirect URIs:** paste `http://127.0.0.1:5173/` *exactly* (including the slash at the end), then press **Add**
-   - **Which API/SDKs are you planning to use?** tick **Web API** and **Web Playback SDK**
-   - Accept the terms and press **Save**
-3. On your new app's page, open **Settings** and copy the **Client ID**.
-4. In Spotifier, paste the Client ID into the **Connect your account** window and press **Connect Spotify**.
-   (You can reopen that window any time from Customize → Account. You can also put the ID in a `.env` file; see `.env.example`.)
-5. Spotify asks you to approve access. Press **Agree**, and you're back in the app with your music.
-
-### If something goes wrong
+## If something goes wrong
 
 | What you see | Fix |
 | --- | --- |
-| `INVALID_CLIENT: Invalid redirect URI` | The Redirect URI in the dashboard must match the address in your browser exactly. Use `http://127.0.0.1:5173/`, not `localhost`. |
-| "User not registered in the Developer Dashboard" | In your app on the dashboard, open **User Management** and add the name and email of your Spotify account. |
-| "Playing in the browser needs Spotify Premium" | Log out of Spotify in your browser and log in with the Premium account. |
-| No sound / "No active device" | Wait a few seconds for the browser player to connect, then tap **Device** and pick *Spotifier (liquid glass)*. Some browsers (e.g. many Linux builds of Chromium) can't play protected audio; use Chrome, Edge or Firefox, or control the Spotify app on your phone instead. |
-| A playlist shows no songs | Spotify only lets apps list songs in playlists *you own or collaborate on*. Press the big play button and it will still play. |
-
-## Keyboard shortcuts
-
-| Key | Action |
-| --- | --- |
-| `Space` | Play / pause |
-| `←` `→` | Seek 5 seconds |
-| `L` | Full-screen lyrics |
-| `/` | Search |
-| `Esc` | Close panels |
+| `INVALID_CLIENT: Invalid redirect URI` | The redirect in the dashboard must match exactly: `com.spotifier.glass://callback` for Android, `http://127.0.0.1:5173/` for the browser. |
+| "User not registered in the Developer Dashboard" | In your Spotify app's dashboard, open **User Management** and add your Spotify account's name and email. |
+| Android: "Spotify isn't awake yet" | Open the Spotify app once (or tap **Device → Open Spotify**), then come back to Spotifier and press play again. |
+| Browser: no sound | Wait a few seconds for the browser player to connect, then tap **Device** and pick *Spotifier (liquid glass)*. Some Linux Chromium builds can't play protected audio. |
+| A playlist shows no songs | Spotify only lets apps list songs in playlists *you own or collaborate on*. Press **Play** and it still plays. |
+| No glass refraction | Edge refraction works in Chrome, Edge, Brave, Opera and the Android app. Firefox and Safari get frosted glass. |
 
 ## Good to know
 
-- **Lyrics** come from [LRCLIB](https://lrclib.net), a free, community-run lyrics database, because Spotify doesn't share its lyrics with other apps. Most popular songs have time-synced lyrics; if a song isn't there yet, you'll see "No lyrics found".
-- **Privacy:** there's no server. Your login token stays in your browser's storage, and the app uses Spotify's PKCE login, so it never sees your password or needs a client secret.
-- **Spotify's limits for personal apps:** new apps start in *Development Mode*, which needs a Premium account and allows up to 5 users you add under User Management. That's plenty for personal use.
-- **Hosting it online:** run `npm run build`, upload the `dist` folder to any static host (Netlify, Vercel, GitHub Pages…), and add that site's `https://…/` address as another Redirect URI in your Spotify app.
+- **Lyrics** are looked up while you listen from [LRCLIB](https://lrclib.net), a free, community-run lyrics library, because Spotify doesn't share its lyrics with other apps. Some songs won't have lyrics.
+- **Privacy:** there's no server. Your login stays on your device, and Spotify's PKCE login means the app never sees your password.
+- **Spotify's rules for personal apps:** new apps start in *Development Mode*, which needs Premium and allows up to 5 users you add under User Management.
+
+## Keyboard shortcuts (computer)
+
+`Space` play/pause · `←` `→` seek 5 s · `P` open/close Now Playing · `L` full-screen lyrics · `/` search · `Esc` close
 
 ## Project layout
 
 ```
-index.html          page structure (three panes, drawers, full-screen lyrics)
-src/main.js         app logic: rendering, controls, library, search, settings
-src/player.js       demo player + Spotify player (Web Playback SDK and Web API)
-src/auth.js         Spotify login (PKCE)
-src/api.js          Spotify Web API calls
-src/lyrics.js       lyrics fetching (LRCLIB) and the glass-bubble lyrics view
-src/fx.js           aurora, bubbles, cursor lighting, refraction, tilt
-src/theme.js        themes, settings, album color extraction
-src/demo.js         demo songs (original, made up for this app)
-src/styles.css      the liquid-glass look
+index.html              page structure: pages, glass dock, Now Playing, full-screen lyrics
+src/main.js             app logic: pages, routing, player, settings
+src/styles.css          the Liquid Glass look
+src/lens.js             real edge refraction for glass buttons and bars
+src/fx.js               cover backdrop, melt filter, cursor light, tilt, optional soap bubbles
+src/player.js           demo player + Spotify player (Web Playback SDK and remote control)
+src/lyrics.js           lyrics lookup (LRCLIB) and the lyric-bubble view
+src/auth.js, api.js     Spotify login (PKCE) and Web API calls
+src/native.js           Android bits: login deep link, back button, status bar
+src/theme.js, demo.js   themes and settings, demo songs (original, made up for this app)
+android/                Android project (Capacitor)
+scripts/android-assets.cjs   renders the app icon and splash screen
 ```

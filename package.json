@@ -3,13 +3,27 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "A liquid-glass Spotify client with floating bubbles, reactive lighting and glass lyric bubbles.",
+  "description": "A Liquid Glass Spotify player for web and Android: melting album art, glass bubble controls and color-shifting lyric bubbles.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "android:sync": "vite build && cap sync android",
+    "android:apk": "vite build && cap sync android && cd android && ./gradlew assembleDebug",
+    "android:assets": "node scripts/android-assets.cjs"
   },
   "devDependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/cli": "8.6.0",
     "vite": "6.4.6"
+  },
+  "dependencies": {
+    "@capacitor/app": "8.1.2",
+    "@capacitor/browser": "8.0.5",
+    "@capacitor/core": "8.6.0",
+    "@capacitor/status-bar": "8.0.4",
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource/dm-serif-display": "5.3.0",
+    "@fontsource/fredoka": "5.3.0"
   }
 }

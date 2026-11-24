@@ -28,7 +28,7 @@ export function toast(message, kind = 'info', ms = 3800) {
   if (!el) {
     el = document.createElement('div');
     el.id = 'toast';
-    el.className = 'glass toast';
+    el.className = 'lg toast';
     el.setAttribute('role', 'status');
     document.body.append(el);
   }
@@ -68,6 +68,13 @@ export const icons = {
   device: stroke('M5 4h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM8 20h8M12 16v4'),
   copy: stroke('M9 9h10v11H9zM5 15V4h10'),
   link: stroke('M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1'),
+  forward: svg('<path d="M3.5 6.6v10.8a1 1 0 0 0 1.55.83L12 13.6v3.8a1 1 0 0 0 1.55.83l8-5.4a1 1 0 0 0 0-1.66l-8-5.4A1 1 0 0 0 12 6.6v3.8L5.05 5.77A1 1 0 0 0 3.5 6.6z" fill="currentColor"/>'),
+  grid: stroke('M4 4h6.5v6.5H4zM13.5 4H20v6.5h-6.5zM4 13.5h6.5V20H4zM13.5 13.5H20V20h-6.5z'),
+  heartOutline: stroke('M12 20.5s-7.5-4.6-9.3-9.4C1.3 7.3 3.7 4 7.1 4c2 0 3.6 1.1 4.9 2.9C13.3 5.1 14.9 4 16.9 4c3.4 0 5.8 3.3 4.4 7.1-1.8 4.8-9.3 9.4-9.3 9.4z'),
+  user: stroke('M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20.5c1.2-3.6 4.1-5.5 7.5-5.5s6.3 1.9 7.5 5.5'),
+  chevronDown: stroke('M6 9.5l6 6 6-6'),
+  more: svg('<circle cx="5.5" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="18.5" cy="12" r="1.8" fill="currentColor"/>'),
+  share: stroke('M12 3v12M7.5 7.5 12 3l4.5 4.5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7'),
   music: stroke('M9 18V5l11-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z'),
 };
 

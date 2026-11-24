@@ -49,7 +49,7 @@ export function initFX(settings) {
   const bg = document.getElementById('bg');
   bg.innerHTML = `
     <div class="bg-base"></div>
-    <div class="rings"></div>
+    <div class="art-bg"><div class="art-layer"><i></i><i></i><i></i></div><div class="art-layer"><i></i><i></i><i></i></div></div>
     <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div>
     <canvas class="bubbles"></canvas>
     <div class="spot"></div>
@@ -64,10 +64,19 @@ export function initFX(settings) {
         <feGaussianBlur in="noise" stdDeviation="2.5" result="soft"/>
         <feDisplacementMap id="refract-map" in="SourceGraphic" in2="soft" scale="${settings.refraction}" xChannelSelector="R" yChannelSelector="G"/>
       </filter>
+      <!-- "Melt": stretched vertical noise makes the cover look like it's dripping into the background -->
+      <filter id="melt" x="-20%" y="-20%" width="140%" height="160%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.018 0.004" numOctaves="2" seed="5" result="drip"/>
+        <feDisplacementMap in="SourceGraphic" in2="drip" scale="70" xChannelSelector="R" yChannelSelector="G" result="d"/>
+        <feGaussianBlur in="d" stdDeviation="10"/>
+      </filter>
     </svg>`,
   );
 
   const blobs = [...bg.querySelectorAll('.blob')];
+  const artLayers = [...bg.querySelectorAll('.art-layer')];
+  let artFront = 0;
+  let artUrl = '';
   const spot = bg.querySelector('.spot');
   const canvas = bg.querySelector('canvas');
   const ctx = canvas.getContext('2d');
@@ -134,6 +143,7 @@ export function initFX(settings) {
     { passive: true },
   );
   document.addEventListener('pointerleave', () => (ptr.inside = false));
+  addEventListener('pointerup', (e) => e.pointerType === 'touch' && (ptr.inside = false), { passive: true });
 
   // Click empty background to pop bubbles
   addEventListener('pointerdown', (e) => {
@@ -162,7 +172,7 @@ export function initFX(settings) {
   document.addEventListener(
     'pointermove',
     (e) => {
-      const el = e.target.closest?.('[data-tilt]');
+      const el = e.pointerType === 'touch' ? null : e.target.closest?.('[data-tilt]');
       if (tiltEl && tiltEl !== el) resetTilt(tiltEl);
       tiltEl = el;
       if (!el) return;
@@ -206,7 +216,7 @@ export function initFX(settings) {
     // Cursor light on glass panels
     if (ptr.moved) {
       ptr.moved = false;
-      for (const el of document.querySelectorAll('.lit')) {
+      for (const el of document.querySelectorAll('.lg')) {
         const r = el.getBoundingClientRect();
         if (!r.width) continue;
         el.style.setProperty('--lx', `${ptr.x - r.left}px`);
@@ -273,6 +283,22 @@ export function initFX(settings) {
       syncCount();
     },
     setColors,
+    /** Crossfades the full-screen album-art backdrop to a new cover. */
+    setArt(url) {
+      if (url === artUrl) return;
+      artUrl = url;
+      const next = artLayers[1 - artFront];
+      const show = () => {
+        next.style.setProperty('--art', url ? `url("${url.replace(/"/g, '%22')}")` : 'none');
+        next.classList.toggle('on', !!url);
+        artLayers[artFront].classList.remove('on');
+        artFront = 1 - artFront;
+      };
+      if (!url) return show();
+      const img = new Image();
+      img.onload = img.onerror = () => url === artUrl && show();
+      img.src = url;
+    },
     /** A beat of energy: aurora swells and bubbles float faster. */
     pulse(n = 1) {
       pulse = clamp(pulse + n, 0, 1.2);

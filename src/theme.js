@@ -1,30 +1,32 @@
 // Look & feel settings, presets and album-art color extraction.
 
 export const PRESETS = {
-  lavender: { label: 'Lavender Liquid', mode: 'dark', c1: '#b69cff', c2: '#7cc7ff', c3: '#ff8fd8', bgA: '#7a62a8', bgB: '#3d2f63' },
-  aurora: { label: 'Aurora', mode: 'dark', c1: '#9d8cff', c2: '#00e0c6', c3: '#ff5ca8', bgA: '#1d1846', bgB: '#060512' },
-  neon: { label: 'Neon Night', mode: 'dark', c1: '#ff5ce1', c2: '#22e6ff', c3: '#8a4dff', bgA: '#2c0b44', bgB: '#05010d' },
-  pastel: { label: 'Pastel Dream', mode: 'light', c1: '#7c4dff', c2: '#ff7cc0', c3: '#3fcfab', bgA: '#eadfff', bgB: '#bfaee8' },
-  ocean: { label: 'Deep Ocean', mode: 'dark', c1: '#5ccbff', c2: '#00ffd0', c3: '#5b6bff', bgA: '#0b3752', bgB: '#03101d' },
-  sunset: { label: 'Sunset Glass', mode: 'dark', c1: '#ffab73', c2: '#ff5c8a', c3: '#ffd36e', bgA: '#5c2341', bgB: '#190711' },
+  midnight: { label: 'Midnight', mode: 'dark', c1: '#9fb6ff', c2: '#c7a0ff', c3: '#7ee3cf', bgA: '#1d1d22', bgB: '#09090b' },
+  forest: { label: 'Forest', mode: 'dark', c1: '#9be3b5', c2: '#7fd1c7', c3: '#e6d28a', bgA: '#22392f', bgB: '#0b1512' },
+  lavender: { label: 'Lavender', mode: 'dark', c1: '#b69cff', c2: '#7cc7ff', c3: '#ff8fd8', bgA: '#3a2d5e', bgB: '#120d1f' },
+  ocean: { label: 'Ocean', mode: 'dark', c1: '#5ccbff', c2: '#00ffd0', c3: '#5b6bff', bgA: '#0e2f45', bgB: '#03101d' },
+  sunset: { label: 'Sunset', mode: 'dark', c1: '#ffab73', c2: '#ff5c8a', c3: '#ffd36e', bgA: '#4a1e33', bgB: '#160810' },
+  daylight: { label: 'Daylight', mode: 'light', c1: '#5b5bff', c2: '#ff5c9e', c3: '#19b38c', bgA: '#f4f4f7', bgB: '#d9d9e2' },
 };
 
 export const DEFAULTS = {
-  preset: 'lavender',
-  ...PRESETS.lavender,
-  reactive: 'background', // 'off' | 'background' | 'all' — follow the album art colors
-  blur: 18, // px of frosting
-  refraction: 40, // liquid-glass bending strength (0 = off)
-  glass: 0.62, // how solid the panels are (0..1)
-  radius: 30, // corner roundness
-  frames: true, // phone-style rims around the panels
-  tilt: true, // panels/cards tilt toward the cursor
-  bubbles: true,
-  bubbleCount: 26,
+  v: 3,
+  preset: 'midnight',
+  ...PRESETS.midnight,
+  reactive: 'all', // 'off' | 'background' | 'all': colors follow the album art
+  backdrop: 'art', // 'art' = the cover melts into the whole background, 'aurora' = soft color glow
+  cover: 'melt', // 'melt' = cover dissolves into the background, 'frame' = rounded card
+  blur: 12, // px of frosting behind the glass
+  refraction: 45, // how strongly glass edges bend what's behind them (0 = off)
+  glass: 0.5, // how solid the glass looks (0..1)
+  radius: 28, // corner roundness of cards
+  tilt: true, // covers and cards tilt toward the mouse
+  bubbles: false, // floating soap bubbles in the background
+  bubbleCount: 14,
   motion: 1, // 0 = still, 1 = normal, 1.6 = extra
-  light: true, // cursor lighting
-  lightStrength: 0.7,
-  titleStyle: 'chrome', // 'chrome' | 'bubbly' | 'serif'
+  light: true, // light that follows the cursor across glass
+  lightStrength: 0.55,
+  titleStyle: 'clean', // 'clean' | 'chrome' | 'bubbly' | 'serif'
   lyricsStyle: 'bubbles', // 'bubbles' | 'karaoke' | 'glow'
   lyricSize: 1,
 };
@@ -33,7 +35,13 @@ const KEY = 'spotifier.settings';
 
 export function loadSettings() {
   try {
-    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') };
+    const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+    // Settings from the first version: keep the colors, take the new cleaner defaults for the rest
+    if (saved.v !== DEFAULTS.v) {
+      const { lyricsStyle, lyricSize } = saved;
+      return { ...DEFAULTS, ...(lyricsStyle ? { lyricsStyle } : {}), ...(lyricSize ? { lyricSize } : {}) };
+    }
+    return { ...DEFAULTS, ...saved };
   } catch {
     return { ...DEFAULTS };
   }
@@ -78,12 +86,13 @@ export function applyTheme(s, palette) {
   root.dataset.mode = s.mode;
   root.dataset.title = s.titleStyle;
   root.dataset.lyrics = s.lyricsStyle;
-  root.dataset.frames = s.frames ? 'on' : 'off';
+  root.dataset.backdrop = s.backdrop;
+  root.dataset.cover = s.cover;
   root.dataset.tilt = s.tilt && s.motion > 0 ? 'on' : 'off';
+  root.dataset.bubbles = s.bubbles ? 'on' : 'off';
   root.toggleAttribute('data-still', Number(s.motion) === 0);
   root.classList.toggle('refract', s.refraction > 0 && supportsRefraction());
-  const map = document.getElementById('refract-map');
-  if (map) map.setAttribute('scale', String(s.refraction));
+  document.querySelectorAll('.svg-defs feDisplacementMap[data-lens]').forEach((m) => m.setAttribute('scale', String(s.refraction)));
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', s.mode === 'light' ? s.bgA : s.bgB);
   return { ui, aurora };
 }

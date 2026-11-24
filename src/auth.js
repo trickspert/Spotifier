@@ -1,5 +1,6 @@
 // Spotify login using the "Authorization Code with PKCE" flow.
 // PKCE needs no client secret, so the whole app can run in the browser safely.
+import { isNative, NATIVE_REDIRECT, openExternal } from './native.js';
 
 const SCOPES = [
   'streaming', // Web Playback SDK (needs Premium)
@@ -21,6 +22,7 @@ const KEY = {
   verifier: 'spotifier.pkce_verifier',
   state: 'spotifier.pkce_state',
   client: 'spotifier.client_id',
+  lastCode: 'spotifier.last_code',
 };
 
 export function getClientId() {
@@ -32,11 +34,13 @@ export function setClientId(id) {
 }
 
 export function redirectUri() {
+  if (isNative) return NATIVE_REDIRECT; // the Android app is opened through this deep link
   return import.meta.env.VITE_SPOTIFY_REDIRECT_URI || `${location.origin}/`;
 }
 
 /** True when the page is opened from an address Spotify will accept as a redirect. */
 export function redirectLooksValid() {
+  if (isNative) return true;
   const u = new URL(redirectUri());
   if (u.hostname === 'localhost') return false;
   return u.protocol === 'https:' || ['127.0.0.1', '[::1]'].includes(u.hostname);
@@ -74,7 +78,7 @@ export async function login() {
     scope: SCOPES,
     state,
   });
-  location.href = `https://accounts.spotify.com/authorize?${params}`;
+  await openExternal(`https://accounts.spotify.com/authorize?${params}`);
 }
 
 function saveToken(json) {
@@ -110,12 +114,16 @@ async function tokenRequest(body) {
 
 /**
  * Finishes the login when Spotify sends the user back with ?code=...
+ * On the web that's this page's address; on Android it's the deep link.
  * Returns true if a login just completed.
  */
-export async function handleCallback() {
-  const p = new URLSearchParams(location.search);
+export async function handleCallback(href = location.href) {
+  const fromPage = href === location.href;
+  const p = new URL(href).searchParams;
   if (!p.has('code') && !p.has('error')) return false;
-  const clean = () => history.replaceState(null, '', location.pathname + location.hash);
+  // Android can hand us the same deep link twice (e.g. after a restart); a code only works once
+  if (p.get('code') && p.get('code') === localStorage.getItem(KEY.lastCode)) return false;
+  const clean = () => fromPage && history.replaceState(null, '', location.pathname + location.hash);
   if (p.has('error')) {
     clean();
     throw new Error(p.get('error') === 'access_denied' ? 'You cancelled the Spotify login.' : `Spotify said: ${p.get('error')}`);
@@ -125,6 +133,7 @@ export async function handleCallback() {
     clean();
     throw new Error('Login state did not match. Please try connecting again.');
   }
+  localStorage.setItem(KEY.lastCode, p.get('code'));
   await tokenRequest({
     client_id: getClientId(),
     grant_type: 'authorization_code',

@@ -1,0 +1,13 @@
+{
+  "appId": "com.spotifier.glass",
+  "appName": "Spotifier",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#09090b"
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css"
+    }
+  }
+}
