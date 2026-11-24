@@ -1,4 +1,4 @@
-import '@fontsource-variable/inter';
+import '@fontsource-variable/inter/opsz.css'; // includes Inter Display: more compact at large sizes
 import '@fontsource/fredoka/600.css';
 import '@fontsource/fredoka/700.css';
 import '@fontsource/dm-serif-display/400.css';
