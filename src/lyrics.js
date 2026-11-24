@@ -204,6 +204,7 @@ export class LyricsView {
     this.active = -2;
     this.box = null;
     this.glass.classList.remove('on');
+    this.glass.remove();
     this.el.classList.remove('synced', 'plain');
     this.track.style.transform = '';
     this.track.innerHTML = `<div class="lyrics-status">${html}</div>`;
@@ -235,8 +236,11 @@ export class LyricsView {
       .join('');
     this.nodes = [...this.track.children];
     this.glass.classList.remove('on');
-    if (this.synced) this.track.prepend(this.glass);
-    else this.nodes.forEach((n) => n.style.setProperty('--d', 0));
+    if (this.synced) this.el.append(this.glass);
+    else {
+      this.glass.remove();
+      this.nodes.forEach((n) => n.style.setProperty('--d', 0));
+    }
   }
 
   setOffset(ms) {
@@ -256,14 +260,7 @@ export class LyricsView {
       this.wIdx = -1;
       this.lastWp = -1;
       this.words = i >= 0 ? [...this.nodes[i].querySelectorAll('.w')] : [];
-      this.words.forEach((w) => {
-        w.classList.remove('sung', 'now');
-        w.style.removeProperty('--wp');
-      });
-      // restart the beat "breathing" so it lines up with the start of the line
-      this.glass.classList.remove('beat');
-      void this.glass.offsetWidth;
-      this.glass.classList.add('beat');
+      this.words.forEach((w) => w.classList.remove('sung', 'now'));
       this.nodes.forEach((n, k) => {
         n.classList.toggle('active', k === i);
         n.classList.toggle('past', k < i);
@@ -272,8 +269,7 @@ export class LyricsView {
       });
       if (performance.now() > this.manualUntil) this.manual = 0;
       this._center(false);
-      if (i >= 0) this._placeGlass(i, prev < 0);
-      else this.glass.classList.remove('on');
+      this._placeGlass(i, prev < 0);
       if (prev !== -2 && i >= 0) this.onLine?.(i);
     }
     if (i >= 0) {
@@ -295,17 +291,14 @@ export class LyricsView {
             this.words[k]?.classList.remove('now');
             this.words[k]?.classList.add('sung');
           }
-          this.words[w]?.classList.add('now');
-          this.wIdx = w;
-          this.lastWp = -1;
-        }
-        if (w >= 0 && this.words[w]) {
-          const cur = wt[w];
-          const wp = Math.min(1, Math.max(0, (pos - cur.s) / Math.max(1, cur.e - cur.s)));
-          if (Math.abs(wp - this.lastWp) > 0.04 || (wp === 1 && this.lastWp !== 1)) {
-            this.lastWp = wp;
-            this.words[w].style.setProperty('--wp', wp.toFixed(2));
+          const cur = this.words[w];
+          if (cur) {
+            // brighten over the word's own length (soft, never a hard flash)
+            const dur = Math.round(Math.min(650, Math.max(180, wt[w].e - wt[w].s)));
+            cur.style.transitionDuration = `${dur}ms, 1400ms`;
+            cur.classList.add('now');
           }
+          this.wIdx = w;
         }
       }
     }
@@ -315,44 +308,48 @@ export class LyricsView {
     }
   }
 
-  /** Moves the glass bubble onto line i, morphing its size with a FLIP animation. */
+  /** Where the sung line's middle sits in the box (the bubble stays here; lines flow into it). */
+  _anchor() {
+    return this.el.clientHeight * 0.42;
+  }
+
+  /** Resizes the anchored glass bubble to fit line i (FLIP, so it morphs smoothly). */
   async _placeGlass(i, instant) {
     const n = this.nodes[i];
     const g = this.glass;
-    if (!n || !n.offsetWidth) return;
-    const box = { x: n.offsetLeft, y: n.offsetTop, w: n.offsetWidth, h: n.offsetHeight };
-    const r = Math.min(box.h / 2, 32);
+    if (!n || !n.offsetWidth || n.classList.contains('inst') || this.manual) {
+      g.classList.remove('on');
+      return;
+    }
+    const w = n.offsetWidth, h = n.offsetHeight;
+    const box = { x: this.track.offsetLeft + n.offsetLeft, y: Math.round(this._anchor() - h / 2), w, h };
+    const r = Math.min(h / 2, 30);
     const my = ++this.glassReq;
     // get the lens map ready first so the glass never shows a half-loaded frame
-    const id = await lensFor(box.w, box.h, r, { k: 0.2, disperse: false }).catch(() => null); // gentle, so words stay readable
+    const id = await lensFor(w, h, r, { k: 0.2, disperse: false }).catch(() => null);
     if (my !== this.glassReq) return;
-    const prev = this.box;
+    const prev = g.classList.contains('on') ? this.box : null;
     this.box = box;
-    g.style.width = `${box.w}px`;
-    g.style.height = `${box.h}px`;
+    g.style.width = `${w}px`;
+    g.style.height = `${h}px`;
     g.style.borderRadius = `${r}px`;
     if (id) g.style.setProperty('--lens', `url(#${id})`);
     const to = `translate3d(${box.x}px, ${box.y}px, 0)`;
-    if (instant || !prev || !g.classList.contains('on')) {
-      g.style.transition = 'none';
-      g.style.transform = to;
-      g.classList.add('on');
-      g.getBoundingClientRect();
-      g.style.transition = '';
-      return;
-    }
-    // FLIP: start at the old size/position, then spring to the new line
     g.style.transition = 'none';
-    g.style.transform = `translate3d(${prev.x}px, ${prev.y}px, 0) scale(${prev.w / box.w}, ${prev.h / box.h})`;
+    g.style.transform = prev && !instant ? `translate3d(${prev.x}px, ${prev.y}px, 0) scale(${prev.w / w}, ${prev.h / h})` : to;
     g.getBoundingClientRect();
     g.style.transition = '';
     g.style.transform = to;
+    g.classList.add('on');
   }
 
   _center(instant) {
     if (!this.synced || !this.nodes.length) return;
     const a = this.nodes[Math.max(0, this.active)];
-    const base = this.el.clientHeight * 0.42 - (a.offsetTop + a.offsetHeight / 2);
+    const base = this._anchor() - (a.offsetTop + a.offsetHeight / 2);
+    // hide the bubble while you look around by hand; bring it back when lyrics snap back
+    if (this.manual) this.glass.classList.remove('on');
+    else if (this.active >= 0 && !this.glass.classList.contains('on') && !instant) this._placeGlass(this.active, true);
     this.track.classList.toggle('instant', !!instant);
     this.track.style.transform = `translate3d(0, ${Math.round(base + this.manual)}px, 0)`;
   }
