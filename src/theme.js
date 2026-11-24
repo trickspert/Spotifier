@@ -1,4 +1,5 @@
 // Look & feel settings, presets and album-art color extraction.
+import { setLensScale } from './lens.js';
 
 export const PRESETS = {
   midnight: { label: 'Midnight', mode: 'dark', c1: '#9fb6ff', c2: '#c7a0ff', c3: '#7ee3cf', bgA: '#1d1d22', bgB: '#09090b' },
@@ -10,14 +11,14 @@ export const PRESETS = {
 };
 
 export const DEFAULTS = {
-  v: 3,
+  v: 4,
   preset: 'midnight',
   ...PRESETS.midnight,
   reactive: 'all', // 'off' | 'background' | 'all': colors follow the album art
   backdrop: 'art', // 'art' = the cover melts into the whole background, 'aurora' = soft color glow
   cover: 'melt', // 'melt' = cover dissolves into the background, 'frame' = rounded card
-  blur: 12, // px of frosting behind the glass
-  refraction: 45, // how strongly glass edges bend what's behind them (0 = off)
+  blur: 7, // px of frosting behind the glass (low = clear glass, so the refraction shows)
+  refraction: 70, // how strongly glass edges bend what's behind them (0 = off)
   glass: 0.5, // how solid the glass looks (0..1)
   radius: 28, // corner roundness of cards
   tilt: true, // covers and cards tilt toward the mouse
@@ -37,6 +38,10 @@ export function loadSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
     // Settings from the first version: keep the colors, take the new cleaner defaults for the rest
+    if (saved.v === 3) {
+      const { v, refraction, blur, glass, ...keep } = saved;
+      return { ...DEFAULTS, ...keep, v: DEFAULTS.v };
+    }
     if (saved.v !== DEFAULTS.v) {
       const { lyricsStyle, lyricSize } = saved;
       return { ...DEFAULTS, ...(lyricsStyle ? { lyricsStyle } : {}), ...(lyricSize ? { lyricSize } : {}) };
@@ -92,7 +97,7 @@ export function applyTheme(s, palette) {
   root.dataset.bubbles = s.bubbles ? 'on' : 'off';
   root.toggleAttribute('data-still', Number(s.motion) === 0);
   root.classList.toggle('refract', s.refraction > 0 && supportsRefraction());
-  document.querySelectorAll('.svg-defs feDisplacementMap[data-lens]').forEach((m) => m.setAttribute('scale', String(s.refraction)));
+  setLensScale(s.refraction);
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', s.mode === 'light' ? s.bgA : s.bgB);
   return { ui, aurora };
 }

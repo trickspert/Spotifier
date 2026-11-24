@@ -5,7 +5,7 @@ import '@fontsource/dm-serif-display/400.css';
 import '@fontsource/dm-serif-display/400-italic.css';
 import { icons, $, $$, esc, fmt, toast, greeting, clamp, eqBars } from './util.js';
 import { loadSettings, saveSettings, applyTheme, extractPalette, PRESETS, DEFAULTS, supportsRefraction } from './theme.js';
-import { initFX } from './fx.js';
+import { initFX, paintMelt } from './fx.js';
 import { initLens } from './lens.js';
 import { DemoPlayer, SpotifyPlayer } from './player.js';
 import { LyricsView, getLyrics } from './lyrics.js';
@@ -155,6 +155,13 @@ function wirePlayer(p) {
   onPlayerChange();
 }
 
+const shown = {}; // what the UI currently shows, so we only touch the DOM on real changes
+function changed(key, value) {
+  if (shown[key] === value) return false;
+  shown[key] = value;
+  return true;
+}
+
 function onPlayerChange() {
   const s = S.player.state;
   const t = s.track;
@@ -162,28 +169,37 @@ function onPlayerChange() {
     S.trackId = t?.id ?? null;
     onTrack(t);
   }
-  for (const b of $$('.play-toggle')) {
-    b.innerHTML = s.paused ? icons.play : icons.pause;
-    b.setAttribute('aria-label', s.paused ? 'Play' : 'Pause');
+  if (changed('paused', s.paused)) {
+    for (const b of $$('.play-toggle')) {
+      b.innerHTML = s.paused ? icons.play : icons.pause;
+      b.setAttribute('aria-label', s.paused ? 'Play' : 'Pause');
+    }
   }
   document.documentElement.classList.toggle('is-playing', !s.paused && !!t);
-  $$('[data-act="shuffle"]').forEach((b) => b.classList.toggle('on', s.shuffle));
-  $$('[data-act="repeat"]').forEach((b) => {
-    b.classList.toggle('on', s.repeat !== 'off');
-    b.innerHTML = s.repeat === 'track' ? icons.repeatOne : icons.repeat;
-  });
+  if (changed('shuffle', s.shuffle)) $$('[data-act="shuffle"]').forEach((b) => b.classList.toggle('on', s.shuffle));
+  if (changed('repeat', s.repeat))
+    $$('[data-act="repeat"]').forEach((b) => {
+      b.classList.toggle('on', s.repeat !== 'off');
+      b.innerHTML = s.repeat === 'track' ? icons.repeatOne : icons.repeat;
+    });
   const vol = ranges.find((r) => r.kind === 'volume');
-  if (!vol.dragging) vol.el.style.setProperty('--p', s.volume);
-  $$('[data-act="mute"]').forEach((b) => (b.innerHTML = s.volume === 0 ? icons.mute : icons.volume));
+  if (!vol.dragging && changed('volume', s.volume)) vol.el.style.setProperty('--p', s.volume);
+  if (changed('muted', s.volume === 0)) $$('[data-act="mute"]').forEach((b) => (b.innerHTML = s.volume === 0 ? icons.mute : icons.volume));
   const remote = S.player.remote;
-  $('.device-line').innerHTML = s.device
+  const line = s.device
     ? `<span class="dot"></span>Playing on <b>${esc(s.device)}</b>${remote && !isNative ? ' · <button class="text-btn" data-act="play-here">Play here</button>' : ''}`
     : '';
+  if (changed('device', line)) $('.device-line').innerHTML = line;
 }
 
 async function onTrack(t) {
-  $$('.np-art').forEach((img) => (img.src = t?.image || PLACEHOLDER));
-  fx.setArt(t?.image || '');
+  const art = t?.image || PLACEHOLDER;
+  const newArt = changed('art', art);
+  if (newArt) {
+    $$('.np-art').forEach((img) => (img.src = art));
+    $$('.art-melt canvas.melt').forEach((cv) => paintMelt(cv, t?.image));
+    fx.setArt(t?.image || '');
+  }
   $$('.np-title').forEach((el) => {
     el.textContent = t?.name || 'Nothing playing';
     el.dataset.text = el.textContent;
@@ -193,11 +209,12 @@ async function onTrack(t) {
   $('.np-artist-small').textContent = t?.artists || 'Pick a song to start';
   $('.np-context').textContent = S.context;
   document.title = t ? `${t.name} · ${t.artists}` : 'Spotifier';
-  $$('.art-frame').forEach((f) => {
-    f.classList.remove('swap');
-    void f.offsetWidth;
-    f.classList.add('swap');
-  });
+  if (newArt)
+    $$('.art-frame').forEach((f) => {
+      f.classList.remove('swap');
+      void f.offsetWidth;
+      f.classList.add('swap');
+    });
   markPlayingRows();
   fx.pulse(1);
   loadLyrics(t);
@@ -615,7 +632,7 @@ async function renderCollection(kind, id, my) {
   if (my !== renderReq) return;
   S.collection = info;
   const art = info.image
-    ? `<div class="art-melt" aria-hidden="true"><img src="${esc(info.image)}" alt="" /></div><img class="coll-img" src="${esc(info.image)}" alt="" />`
+    ? `<div class="art-melt" aria-hidden="true"><canvas class="melt coll-melt"></canvas></div><img class="coll-img" src="${esc(info.image)}" alt="" />`
     : `<div class="coll-img liked-art big">${icons.heart}</div>`;
   setView(`
     <button class="circle lg back-fab" data-act="back" aria-label="Back" data-icon="back"></button>
@@ -635,6 +652,8 @@ async function renderCollection(kind, id, my) {
       ${info.note ? `<p class="note">${esc(info.note)}</p>` : ''}
       ${info.tracks.length ? `<div class="card lg rows tracklist">${info.tracks.map((t, i) => trackRow(t, i, { num: info.type === 'Album', art: info.type !== 'Album' })).join('')}</div>` : ''}
     </div>`);
+  const cm = $('.coll-melt');
+  if (cm) paintMelt(cm, info.image);
 }
 
 // ---------- player sheet & full screen lyrics (with the "melt" morph) ----------
@@ -979,14 +998,19 @@ document.addEventListener('keydown', (e) => {
 
 // ---------- frame loop ----------
 let lastSec = -1;
-function loop() {
+let lastBar = 0;
+const miniLine = $('.mini-line i');
+function loop(now) {
   const p = S.player;
   if (p) {
     const pos = p.position();
     const dur = p.state.duration;
     const frac = dur ? clamp(pos / dur, 0, 1) : 0;
-    for (const r of ranges) if (r.kind === 'seek' && !r.dragging) r.el.style.setProperty('--p', frac.toFixed(4));
-    $('.mini').style.setProperty('--p', frac.toFixed(4));
+    if (now - lastBar > 100) {
+      lastBar = now;
+      if (playerOpen()) for (const r of ranges) if (r.kind === 'seek' && !r.dragging) r.el.style.setProperty('--p', frac.toFixed(4));
+      miniLine.style.transform = `scaleX(${frac.toFixed(4)})`;
+    }
     const sec = Math.floor(pos / 1000);
     if (sec !== lastSec) {
       lastSec = sec;

@@ -1,6 +1,10 @@
-// Visual effects: aurora background, floating soap bubbles, cursor lighting,
-// liquid-glass refraction filter and 3D tilt.
+// Visual effects, built to stay smooth on phones:
+//  - the cover backdrop and the "melting" drips are painted ONCE per song into small canvases
+//    and simply stretched by the GPU (stretching a tiny image = free, natural blur)
+//  - nothing runs per frame unless it's actually visible (soap bubbles, aurora, cursor light)
 import { clamp, lerp } from './util.js';
+
+const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
 
 const hexToRgb = (hex) => {
   const n = parseInt(hex.replace('#', ''), 16);
@@ -13,7 +17,6 @@ function bubbleSprite(hex, size = 128) {
   cv.width = cv.height = size;
   const x = cv.getContext('2d');
   const R = size / 2;
-  // body: clear center, colored iridescent rim
   const body = x.createRadialGradient(R, R, R * 0.1, R, R, R);
   body.addColorStop(0, `rgba(${r},${g},${b},0.02)`);
   body.addColorStop(0.62, `rgba(${r},${g},${b},0.07)`);
@@ -24,70 +27,108 @@ function bubbleSprite(hex, size = 128) {
   x.beginPath();
   x.arc(R, R, R, 0, Math.PI * 2);
   x.fill();
-  // second hue on the lower rim for an oily, soap-film look
-  const film = x.createLinearGradient(0, size, size, 0);
-  film.addColorStop(0, 'rgba(255,140,220,0.22)');
-  film.addColorStop(0.5, 'rgba(255,255,255,0)');
-  film.addColorStop(1, 'rgba(120,220,255,0.18)');
-  x.globalCompositeOperation = 'source-atop';
-  x.fillStyle = film;
-  x.fillRect(0, 0, size, size);
-  x.globalCompositeOperation = 'source-over';
-  // specular highlights
   x.fillStyle = 'rgba(255,255,255,0.75)';
   x.beginPath();
   x.ellipse(R * 0.62, R * 0.52, R * 0.26, R * 0.12, -0.7, 0, Math.PI * 2);
   x.fill();
-  x.fillStyle = 'rgba(255,255,255,0.9)';
-  x.beginPath();
-  x.arc(R * 1.42, R * 1.38, R * 0.05, 0, Math.PI * 2);
-  x.fill();
   return cv;
+}
+
+// ---------- images, loaded once and shared ----------
+const imgCache = new Map();
+export function loadImage(url) {
+  if (!url) return Promise.resolve(null);
+  if (!imgCache.has(url)) {
+    imgCache.set(
+      url,
+      new Promise((res) => {
+        const img = new Image();
+        img.decoding = 'async';
+        img.onload = () => res(img);
+        img.onerror = () => res(null);
+        img.src = url;
+      }),
+    );
+  }
+  return imgCache.get(url);
+}
+
+/** Paints a soft, saturated wash of the cover (used full screen behind everything). */
+function paintBackdrop(cv, img) {
+  const S = 96;
+  cv.width = cv.height = S;
+  const g = cv.getContext('2d');
+  g.clearRect(0, 0, S, S);
+  if (!img) return;
+  g.filter = 'blur(7px) saturate(1.7)';
+  // three overlapping, rotated copies give the "flowing" Apple Music look
+  const draws = [
+    [0, 0, 1.25, 0],
+    [S * 0.55, S * 0.5, 1.0, 2.1],
+    [S * 0.15, S * 0.65, 0.8, 4.2],
+  ];
+  for (const [x, y, sc, rot] of draws) {
+    g.save();
+    g.translate(x + (S * sc) / 2, y + (S * sc) / 2);
+    g.rotate(rot);
+    g.drawImage(img, (-S * sc) / 2, (-S * sc) / 2, S * sc, S * sc);
+    g.restore();
+  }
+  g.filter = 'none';
+}
+
+/** Paints the cover's bottom edge dripping downward, like it's melting. Drawn once per song. */
+export async function paintMelt(cv, url) {
+  const img = await loadImage(url);
+  const W = 60, H = 90;
+  cv.width = W;
+  cv.height = H;
+  const g = cv.getContext('2d');
+  g.clearRect(0, 0, W, H);
+  if (!img) return;
+  g.filter = 'saturate(1.5)';
+  g.drawImage(img, 0, 0, W, W);
+  // stretch each thin column of the bottom edge down by a different amount
+  let seed = url.length;
+  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  for (let x = 0; x < W; x += 2) {
+    const len = 10 + rnd() * 28 + Math.sin(x * 0.35) * 6;
+    g.drawImage(img, (x / W) * iw, ih * 0.9, (2 / W) * iw, ih * 0.1, x, W - 6, 2, len);
+  }
+  g.filter = 'blur(2px)';
+  g.globalCompositeOperation = 'copy';
+  g.drawImage(cv, 0, 0);
+  g.globalCompositeOperation = 'source-over';
+  g.filter = 'none';
 }
 
 export function initFX(settings) {
   const bg = document.getElementById('bg');
   bg.innerHTML = `
     <div class="bg-base"></div>
-    <div class="art-bg"><div class="art-layer"><i></i><i></i><i></i></div><div class="art-layer"><i></i><i></i><i></i></div></div>
-    <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div>
+    <div class="art-bg"><canvas class="art-layer"></canvas><canvas class="art-layer"></canvas></div>
+    <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
     <canvas class="bubbles"></canvas>
-    <div class="spot"></div>
-    <div class="grain"></div>`;
-
-  // Liquid-glass refraction: a noise displacement map applied to whatever is behind each panel.
-  document.body.insertAdjacentHTML(
-    'afterbegin',
-    `<svg class="svg-defs" width="0" height="0" aria-hidden="true">
-      <filter id="liquid" x="0%" y="0%" width="100%" height="100%" color-interpolation-filters="sRGB">
-        <feTurbulence id="refract-noise" type="fractalNoise" baseFrequency="0.007 0.011" numOctaves="2" seed="8" result="noise"/>
-        <feGaussianBlur in="noise" stdDeviation="2.5" result="soft"/>
-        <feDisplacementMap id="refract-map" in="SourceGraphic" in2="soft" scale="${settings.refraction}" xChannelSelector="R" yChannelSelector="G"/>
-      </filter>
-      <!-- "Melt": stretched vertical noise makes the cover look like it's dripping into the background -->
-      <filter id="melt" x="-20%" y="-20%" width="140%" height="160%" color-interpolation-filters="sRGB">
-        <feTurbulence type="fractalNoise" baseFrequency="0.018 0.004" numOctaves="2" seed="5" result="drip"/>
-        <feDisplacementMap in="SourceGraphic" in2="drip" scale="70" xChannelSelector="R" yChannelSelector="G" result="d"/>
-        <feGaussianBlur in="d" stdDeviation="10"/>
-      </filter>
-    </svg>`,
-  );
+    <div class="spot"></div>`;
+  document.body.insertAdjacentHTML('afterbegin', '<svg class="svg-defs" width="0" height="0" aria-hidden="true"></svg>');
 
   const blobs = [...bg.querySelectorAll('.blob')];
+  const artBg = bg.querySelector('.art-bg');
   const artLayers = [...bg.querySelectorAll('.art-layer')];
   let artFront = 0;
-  let artUrl = '';
+  let artUrl = null;
   const spot = bg.querySelector('.spot');
-  const canvas = bg.querySelector('canvas');
+  const canvas = bg.querySelector('.bubbles');
   const ctx = canvas.getContext('2d');
-  const noise = document.getElementById('refract-noise');
 
   let cfg = settings;
   let W = 0, H = 0, dpr = 1;
   let sprites = [];
   let bubbles = [];
+  let canvasDirty = false;
   let pulse = 0;
-  const ptr = { x: innerWidth / 2, y: innerHeight / 2, sx: innerWidth / 2, sy: innerHeight / 2, moved: true, inside: false };
+  const ptr = { x: innerWidth / 2, y: innerHeight / 2, sx: innerWidth / 2, sy: innerHeight / 2, moved: false, inside: false };
 
   function resize() {
     dpr = Math.min(devicePixelRatio || 1, 1.5);
@@ -125,69 +166,54 @@ export function initFX(settings) {
     }
   }
 
-  function setColors(colors) {
-    sprites = colors.map((c) => bubbleSprite(c));
-  }
-
   addEventListener('resize', resize);
   resize();
 
-  addEventListener(
-    'pointermove',
-    (e) => {
-      ptr.x = e.clientX;
-      ptr.y = e.clientY;
-      ptr.moved = true;
-      ptr.inside = true;
-    },
-    { passive: true },
-  );
-  document.addEventListener('pointerleave', () => (ptr.inside = false));
-  addEventListener('pointerup', (e) => e.pointerType === 'touch' && (ptr.inside = false), { passive: true });
+  // Cursor light and tilt are for mice only; on touch screens they'd just cost battery
+  if (finePointer) {
+    addEventListener(
+      'pointermove',
+      (e) => {
+        ptr.x = e.clientX;
+        ptr.y = e.clientY;
+        ptr.moved = true;
+        ptr.inside = true;
+      },
+      { passive: true },
+    );
+    document.addEventListener('pointerleave', () => (ptr.inside = false));
 
-  // Click empty background to pop bubbles
+    let tiltEl = null;
+    const resetTilt = (el) => {
+      el.style.removeProperty('--rx');
+      el.style.removeProperty('--ry');
+      el.classList.remove('tilting');
+    };
+    document.addEventListener(
+      'pointermove',
+      (e) => {
+        const el = e.target.closest?.('[data-tilt]');
+        if (tiltEl && tiltEl !== el) resetTilt(tiltEl);
+        tiltEl = el;
+        if (!el || document.documentElement.dataset.tilt !== 'on') return;
+        const r = el.getBoundingClientRect();
+        const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+        const max = (Number(el.dataset.tilt) || 10) * cfg.motion;
+        el.classList.add('tilting');
+        el.style.setProperty('--rx', `${(0.5 - py) * max}deg`);
+        el.style.setProperty('--ry', `${(px - 0.5) * max}deg`);
+      },
+      { passive: true },
+    );
+  }
+
+  // Tap empty background to pop soap bubbles
   addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.pane, .topbar, .tabbar, .drawer, .overlay, .sheet, .modal, button, input')) return;
+    if (!bubbles.length || e.target.closest('button, a, input, .lg, [role="button"]')) return;
     for (const b of bubbles) {
-      if (!b.pop && Math.hypot(b.x - e.clientX, b.y - e.clientY) < b.r + 6) {
-        b.pop = 1;
-        for (let i = 0; i < 5; i++) {
-          const s = makeBubble(b.x, b.y, 3 + Math.random() * 7, true);
-          const a = Math.random() * Math.PI * 2;
-          s.vx = Math.cos(a) * 3;
-          s.vy = Math.sin(a) * 3;
-          bubbles.push(s);
-        }
-      }
+      if (!b.pop && Math.hypot(b.x - e.clientX, b.y - e.clientY) < b.r + 6) b.pop = 1;
     }
   });
-
-  // Tilt + local light for anything marked data-tilt (cards, album art)
-  let tiltEl = null;
-  const resetTilt = (el) => {
-    el.style.removeProperty('--rx');
-    el.style.removeProperty('--ry');
-    el.classList.remove('tilting');
-  };
-  document.addEventListener(
-    'pointermove',
-    (e) => {
-      const el = e.pointerType === 'touch' ? null : e.target.closest?.('[data-tilt]');
-      if (tiltEl && tiltEl !== el) resetTilt(tiltEl);
-      tiltEl = el;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
-      el.style.setProperty('--lx', `${px * 100}%`);
-      el.style.setProperty('--ly', `${py * 100}%`);
-      if (document.documentElement.dataset.tilt !== 'on') return;
-      const max = (Number(el.dataset.tilt) || 10) * cfg.motion;
-      el.classList.add('tilting');
-      el.style.setProperty('--rx', `${(0.5 - py) * max}deg`);
-      el.style.setProperty('--ry', `${(px - 0.5) * max}deg`);
-    },
-    { passive: true },
-  );
 
   let t0 = performance.now();
   function frame(now) {
@@ -195,55 +221,54 @@ export function initFX(settings) {
     t0 = now;
     const m = cfg.motion;
     const t = now / 1000;
-    pulse *= 0.94;
 
-    ptr.sx = lerp(ptr.sx, ptr.x, 0.12);
-    ptr.sy = lerp(ptr.sy, ptr.y, 0.12);
-    const nx = ptr.sx / W - 0.5, ny = ptr.sy / H - 0.5;
+    if (pulse > 0.002) {
+      pulse *= 0.93;
+      artBg.style.scale = String(1 + pulse * 0.035);
+    }
 
-    // Aurora blobs drift, breathe and lean toward the cursor
-    blobs.forEach((b, i) => {
-      const k = i + 1;
-      const x = Math.sin(t * 0.13 * k + k) * 14 * m + nx * 6 * k * m;
-      const y = Math.cos(t * 0.11 * k + k * 2) * 12 * m + ny * 5 * k * m;
-      const s = 1 + Math.sin(t * 0.4 + k) * 0.06 * m + pulse * 0.12;
-      b.style.transform = `translate3d(${x}vw, ${y}vh, 0) scale(${s})`;
-    });
+    if (cfg.backdrop === 'aurora') {
+      blobs.forEach((b, i) => {
+        const k = i + 1;
+        const x = Math.sin(t * 0.13 * k + k) * 14 * m;
+        const y = Math.cos(t * 0.11 * k + k * 2) * 12 * m;
+        b.style.transform = `translate3d(${x}vw, ${y}vh, 0) scale(${1 + pulse * 0.12})`;
+      });
+    }
 
-    spot.style.transform = `translate3d(${ptr.sx}px, ${ptr.sy}px, 0)`;
-    spot.style.opacity = ptr.inside && cfg.light ? cfg.lightStrength : 0;
-
-    // Cursor light on glass panels
-    if (ptr.moved) {
-      ptr.moved = false;
-      for (const el of document.querySelectorAll('.lg')) {
-        const r = el.getBoundingClientRect();
-        if (!r.width) continue;
-        el.style.setProperty('--lx', `${ptr.x - r.left}px`);
-        el.style.setProperty('--ly', `${ptr.y - r.top}px`);
+    if (finePointer) {
+      ptr.sx = lerp(ptr.sx, ptr.x, 0.14);
+      ptr.sy = lerp(ptr.sy, ptr.y, 0.14);
+      spot.style.transform = `translate3d(${ptr.sx}px, ${ptr.sy}px, 0)`;
+      spot.style.opacity = ptr.inside && cfg.light ? cfg.lightStrength : 0;
+      if (ptr.moved && cfg.light) {
+        ptr.moved = false;
+        for (const el of document.querySelectorAll('.lg')) {
+          const r = el.getBoundingClientRect();
+          if (!r.width || r.bottom < 0 || r.top > H) continue;
+          el.style.setProperty('--lx', `${ptr.x - r.left}px`);
+          el.style.setProperty('--ly', `${ptr.y - r.top}px`);
+        }
       }
     }
 
-    // Slowly morph the refraction pattern so the glass feels liquid
-    if (m > 0 && noise && Math.round(now / 120) % 2 === 0) {
-      const f = 0.007 + Math.sin(t * 0.25) * 0.0012 * m;
-      noise.setAttribute('baseFrequency', `${f.toFixed(5)} ${(f * 1.55).toFixed(5)}`);
-    }
-
-    // Bubbles
-    ctx.clearRect(0, 0, W, H);
-    if (sprites.length) {
+    // Soap bubbles: only touch the canvas when there's something to draw
+    if (bubbles.length && sprites.length) {
+      canvasDirty = true;
+      ctx.clearRect(0, 0, W, H);
       for (const b of bubbles) {
         b.phase += 0.01 * dt;
-        b.vy -= b.rise * 0.02 * dt * (1 + pulse * 2);
+        b.vy -= b.rise * 0.02 * dt;
         b.vx += Math.sin(b.phase) * 0.004 * dt;
-        const dx = b.x - ptr.sx, dy = b.y - ptr.sy;
-        const d = Math.hypot(dx, dy);
-        const reach = b.r + 110;
-        if (ptr.inside && d < reach && d > 0.1) {
-          const f = ((reach - d) / reach) * 0.6;
-          b.vx += (dx / d) * f * dt;
-          b.vy += (dy / d) * f * dt;
+        if (finePointer && ptr.inside) {
+          const dx = b.x - ptr.sx, dy = b.y - ptr.sy;
+          const d = Math.hypot(dx, dy);
+          const reach = b.r + 110;
+          if (d < reach && d > 0.1) {
+            const f = ((reach - d) / reach) * 0.6;
+            b.vx += (dx / d) * f * dt;
+            b.vy += (dy / d) * f * dt;
+          }
         }
         b.vx *= 0.96;
         b.vy *= 0.96;
@@ -252,26 +277,27 @@ export function initFX(settings) {
         b.y += (b.vy - b.rise) * dt * sp;
         if (b.life !== Infinity) b.life -= 0.006 * dt;
         if (b.pop) b.pop += 0.12 * dt;
-        if (b.y < -b.r * 2 || b.x < -b.r * 3 || b.x > W + b.r * 3) {
-          Object.assign(b, makeBubble(Math.random() * W, H + b.r * 2), { sprite: b.sprite });
-        }
-        const wob = 1 + Math.sin(b.phase * 3) * 0.035;
-        const scale = b.pop ? 1 + b.pop * 0.6 : 1;
+        if (b.y < -b.r * 2 || b.x < -b.r * 3 || b.x > W + b.r * 3) Object.assign(b, makeBubble(Math.random() * W, H + b.r * 2), { sprite: b.sprite });
         const alpha = b.pop ? Math.max(0, 1 - b.pop) : Math.min(1, b.life);
         if (alpha <= 0) continue;
-        const r = b.r * scale;
+        const r = b.r * (b.pop ? 1 + b.pop * 0.6 : 1);
         ctx.globalAlpha = alpha;
-        ctx.drawImage(sprites[b.sprite % sprites.length], b.x - r * wob, b.y - r / wob, r * 2 * wob, (r * 2) / wob);
+        ctx.drawImage(sprites[b.sprite % sprites.length], b.x - r, b.y - r, r * 2, r * 2);
       }
       ctx.globalAlpha = 1;
-      bubbles = bubbles.filter((b) => (b.life === Infinity ? !(b.pop >= 1) || respawn(b) : b.life > 0 && !(b.pop >= 1)));
+      bubbles = bubbles.filter((b) => {
+        if (b.life === Infinity) {
+          if (b.pop >= 1) Object.assign(b, makeBubble(Math.random() * W, H + 80), { sprite: b.sprite });
+          return true;
+        }
+        return b.life > 0 && !(b.pop >= 1);
+      });
+    } else if (canvasDirty) {
+      ctx.clearRect(0, 0, W, H);
+      canvasDirty = false;
     }
     requestAnimationFrame(frame);
   }
-  const respawn = (b) => {
-    Object.assign(b, makeBubble(Math.random() * W, H + 80), { sprite: b.sprite });
-    return true;
-  };
 
   return {
     start() {
@@ -282,28 +308,24 @@ export function initFX(settings) {
       cfg = s;
       syncCount();
     },
-    setColors,
-    /** Crossfades the full-screen album-art backdrop to a new cover. */
-    setArt(url) {
+    setColors(colors) {
+      sprites = colors.map((c) => bubbleSprite(c));
+    },
+    /** Crossfades the full-screen backdrop to a new cover. Only repaints when the cover changes. */
+    async setArt(url) {
       if (url === artUrl) return;
       artUrl = url;
+      const img = await loadImage(url);
+      if (url !== artUrl) return;
       const next = artLayers[1 - artFront];
-      const show = () => {
-        next.style.setProperty('--art', url ? `url("${url.replace(/"/g, '%22')}")` : 'none');
-        next.classList.toggle('on', !!url);
-        artLayers[artFront].classList.remove('on');
-        artFront = 1 - artFront;
-      };
-      if (!url) return show();
-      const img = new Image();
-      img.onload = img.onerror = () => url === artUrl && show();
-      img.src = url;
+      paintBackdrop(next, img);
+      next.classList.toggle('on', !!img);
+      artLayers[artFront].classList.remove('on');
+      artFront = 1 - artFront;
     },
-    /** A beat of energy: aurora swells and bubbles float faster. */
     pulse(n = 1) {
-      pulse = clamp(pulse + n, 0, 1.2);
+      if (cfg.motion) pulse = clamp(pulse + n, 0, 1);
     },
-    /** A few tiny bubbles rise from a point on screen (e.g. a lyric line). */
     burst(x, y, n = 4) {
       if (!cfg.bubbles || !cfg.motion) return;
       for (let i = 0; i < n; i++) {

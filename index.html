@@ -38,7 +38,7 @@
     <!-- Full-screen Now Playing -->
     <section class="player" id="player" aria-label="Now playing" aria-hidden="true">
       <div class="art-frame player-art" data-tilt="8" data-act="immersive" role="button" tabindex="0" aria-label="Show lyrics full screen">
-        <div class="art-melt" aria-hidden="true"><img class="np-art" alt="" /></div>
+        <div class="art-melt" aria-hidden="true"><canvas class="melt"></canvas></div>
         <div class="art-inner"><img class="np-art" alt="" /><div class="art-gloss"></div></div>
       </div>
       <header class="player-head">
@@ -89,7 +89,7 @@
     <div class="immersive" id="immersive" aria-hidden="true">
       <div class="imm-left">
         <div class="art-frame big">
-          <div class="art-melt" aria-hidden="true"><img class="np-art" alt="" /></div>
+          <div class="art-melt" aria-hidden="true"><canvas class="melt"></canvas></div>
           <div class="art-inner"><img class="np-art" alt="" /><div class="art-gloss"></div></div>
         </div>
         <h2 class="title np-title" data-text=""></h2>

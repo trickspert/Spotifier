@@ -164,15 +164,26 @@ export class SpotifyPlayer extends BasePlayer {
     if (mine && this.sdkActive) return; // the SDK already gives us better data
     this.sdkActive = mine && this.sdkActive;
     this.remote = mine ? null : { id: r.device.id, name: r.device.name };
-    this.set({
-      track: normTrack(r.item),
-      duration: r.item?.duration_ms || 0,
-      position: r.progress_ms || 0,
+    // Spotify sometimes reports no song for a moment (between tracks, while buffering).
+    // Keep showing the current one instead of flashing an empty player.
+    const item = r.item ? normTrack(r.item) : this.state.track;
+    const same = item && this.state.track && item.id === this.state.track.id;
+    const s = this.state;
+    const next = {
+      track: same ? s.track : item,
+      duration: r.item?.duration_ms || s.duration,
       paused: !r.is_playing,
       shuffle: !!r.shuffle_state,
       repeat: r.repeat_state || 'off',
-      volume: r.device.volume_percent != null ? r.device.volume_percent / 100 : this.state.volume,
+      volume: r.device.volume_percent != null ? r.device.volume_percent / 100 : s.volume,
       device: mine ? 'This browser' : r.device.name,
+    };
+    // Skip updates that change nothing visible (small position drift is smoothed locally)
+    const drift = Math.abs((r.progress_ms || 0) - this.position());
+    if (same && drift < 1500 && Object.entries(next).every(([k, v]) => k === 'track' || s[k] === v)) return;
+    this.set({
+      ...next,
+      position: r.progress_ms || 0,
     });
   }
 
