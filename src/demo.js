@@ -108,6 +108,7 @@ export function demoTracks() {
     name: s.name,
     artists: s.artists,
     artistList: [s.artists],
+    artistRefs: [{ id: null, name: s.artists }],
     album: s.album,
     image: cover(s.seed, s.colors),
     duration: s.duration * 1000,

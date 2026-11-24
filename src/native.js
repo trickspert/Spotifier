@@ -52,8 +52,12 @@ export function openSpotifyApp() {
 }
 
 /** A light tap of vibration, like iOS buttons (Android app only). */
+let hapticsOn = true;
+export function setHaptics(on) {
+  hapticsOn = on;
+}
 export function haptic(strength = 'Light') {
-  if (isNative) Haptics.impact({ style: ImpactStyle[strength] || ImpactStyle.Light }).catch(() => {});
+  if (isNative && hapticsOn) Haptics.impact({ style: ImpactStyle[strength] || ImpactStyle.Light }).catch(() => {});
 }
 
 // "Now playing" notification that keeps music running in the background (android/.../PlaybackPlugin.java)

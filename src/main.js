@@ -8,11 +8,12 @@ import { loadSettings, saveSettings, applyTheme, extractPalette, artBrightness, 
 import { initFX, paintMelt } from './fx.js';
 import { initLens } from './lens.js';
 import { DemoPlayer, SpotifyPlayer } from './player.js';
-import { LyricsView, getLyrics } from './lyrics.js';
-import { Spotify, normTrack, bestImage, playlistEntryTrack } from './api.js';
+import { LyricsView, getLyrics, clearLyricsCache } from './lyrics.js';
+import { Spotify, normTrack, bestImage, playlistEntryTrack, setImageSize } from './api.js';
+import { getArtistInfo, clearArtistCache, compactNumber } from './artist.js';
 import { handleCallback, isLoggedIn, login, logout, getClientId, setClientId, redirectUri, redirectLooksValid } from './auth.js';
 import { demoTracks, demoPlaylists } from './demo.js';
-import { isNative, NATIVE_REDIRECT, onAppUrl, closeBrowser, onBackButton, onResume, minimize, setStatusBar, openSpotifyApp, haptic, showNowPlaying, hideNowPlaying, onNowPlayingAction } from './native.js';
+import { isNative, NATIVE_REDIRECT, onAppUrl, closeBrowser, onBackButton, onResume, minimize, setStatusBar, openSpotifyApp, haptic, setHaptics, openExternal, showNowPlaying, hideNowPlaying, onNowPlayingAction } from './native.js';
 
 if (isNative) document.documentElement.classList.add('native');
 
@@ -55,10 +56,18 @@ function hydrateIcons(root = document) {
 // ---------- theme & effects ----------
 const fx = initFX(S.settings);
 function theme() {
-  const { aurora } = applyTheme(S.settings, S.palette);
+  const st = S.settings;
+  const { aurora } = applyTheme(st, S.palette);
   fx.setColors(aurora);
-  fx.configure(S.settings);
-  setStatusBar(S.settings.mode);
+  fx.configure(st);
+  setStatusBar(st.mode);
+  // app settings (You tab)
+  setHaptics(st.haptics !== false);
+  setImageSize(st.dataSaver ? 300 : 640);
+  document.documentElement.toggleAttribute('data-saver', !!st.dataSaver);
+  document.documentElement.dataset.artistInfo = st.showArtist === false ? 'off' : 'on';
+  if (typeof lyMain !== 'undefined') [lyMain, lyImm].forEach((v) => v.setWordSync(st.wordSync !== false));
+  if (S.player) S.player.preferHere = st.playOn !== 'active';
 }
 
 // ---------- lyrics ----------
@@ -229,6 +238,14 @@ onNowPlayingAction((a, position) => {
 });
 
 async function onTrack(t) {
+  if (t?.explicit && S.settings.skipExplicit && !isDemo()) {
+    toast('Skipped an explicit song');
+    S.player.next();
+  }
+  $('.np-album').textContent = t?.album || '—';
+  $('.album-row').hidden = !t?.album;
+  aboutFor = null;
+  if (aboutVisible) loadAbout();
   const art = t?.image || PLACEHOLDER;
   const newArt = changed('art', art);
   if (newArt) {
@@ -361,12 +378,13 @@ async function devicePicker() {
 
 function moreMenu() {
   showModal(`<div class="modal-card lg menu">
+    <button class="row" data-act="queue"><span class="row-icon">${icons.queue}</span><span class="row-meta"><b>Up next</b></span></button>
     <button class="row" data-act="share"><span class="row-icon">${icons.share}</span><span class="row-meta"><b>Share song</b></span></button>
     <button class="row" data-act="device"><span class="row-icon">${icons.device}</span><span class="row-meta"><b>Choose device</b></span></button>
     <button class="row" data-act="immersive-from-menu"><span class="row-icon">${icons.lyrics}</span><span class="row-meta"><b>Full screen lyrics</b></span></button>
     <button class="row" data-act="lyrics-timing"><span class="row-icon">${icons.clock}</span><span class="row-meta"><b>Lyrics timing</b></span></button>
     <button class="row" data-act="sleep"><span class="row-icon">${icons.moon}</span><span class="row-meta"><b>Sleep timer</b>${S.sleep ? '<span>On</span>' : ''}</span></button>
-    <button class="row" data-act="settings"><span class="row-icon">${icons.sliders}</span><span class="row-meta"><b>Customize the look</b></span></button>
+    <button class="row" data-act="settings"><span class="row-icon">${icons.user}</span><span class="row-meta"><b>Settings</b></span></button>
     <button class="pill wide" data-act="close-modal">Close</button>
   </div>`);
 }
@@ -383,9 +401,55 @@ async function refreshQueue() {
       S.queue = [];
     }
   }
-  $('#queue-list').innerHTML = S.queue.length
-    ? S.queue.map((t, i) => trackRow(t, i, { attr: 'data-qi', art: true })).join('')
-    : '<p class="muted pad">Nothing queued after this song.</p>';
+}
+
+async function queueMenu() {
+  await refreshQueue();
+  showModal(`<div class="modal-card lg menu queue-menu">
+    <h2 class="title">Up next</h2>
+    <div class="list rows">${S.queue.length ? S.queue.map((t, i) => trackRow(t, i, { attr: 'data-qi' })).join('') : '<p class="muted pad">Nothing queued after this song.</p>'}</div>
+    <button class="pill wide" data-act="close-modal">Close</button>
+  </div>`);
+  markPlayingRows();
+}
+
+// ---------- about the artist (loads only when you scroll to it) ----------
+let aboutFor = null;
+let aboutVisible = false;
+new IntersectionObserver(
+  (entries) => {
+    aboutVisible = entries.some((e) => e.isIntersecting);
+    if (aboutVisible) loadAbout();
+  },
+  { root: $('#player'), rootMargin: '300px 0px' },
+).observe($('#about'));
+
+async function loadAbout() {
+  const t = S.player?.state.track;
+  const body = $('#about-body');
+  if (!t || S.settings.showArtist === false || aboutFor === t.id) return;
+  aboutFor = t.id;
+  const refs = t.artistRefs?.length ? t.artistRefs : [{ id: null, name: t.artistList?.[0] || t.artists }];
+  body.innerHTML = '<div class="about-skeleton"></div>';
+  const info = await getArtistInfo(refs[0], { demo: isDemo(), fallbackImage: t.image }).catch(() => null);
+  if (aboutFor !== t.id) return;
+  if (!info) {
+    body.innerHTML = '<p class="muted">Couldn’t load artist info right now.</p>';
+    return;
+  }
+  const stats = [info.followers != null ? `${compactNumber(info.followers)} followers` : '', info.description].filter(Boolean).join(' · ');
+  body.innerHTML = `
+    <div class="about-card">
+      ${info.image ? `<img class="about-img" src="${esc(info.image)}" alt="" loading="lazy" />` : ''}
+      <div class="about-meta"><b>${esc(info.name)}</b>${stats ? `<span>${esc(stats)}</span>` : ''}</div>
+    </div>
+    ${info.bio ? `<p class="about-bio" data-act="toggle-bio" role="button" tabindex="0">${esc(info.bio)}</p>` : '<p class="muted">No bio found for this artist yet.</p>'}
+    ${info.genres?.length ? `<div class="chips-row">${info.genres.slice(0, 5).map((g) => `<span class="tag">${esc(g)}</span>`).join('')}</div>` : ''}
+    ${refs.length > 1 ? `<p class="kicker also">Also on this song</p><div class="chips-row">${refs.slice(1).map((r) => `<button class="tag" data-artist="${esc(r.name)}">${esc(r.name)}</button>`).join('')}</div>` : ''}
+    <div class="about-actions">
+      <button class="pill" data-artist="${esc(info.name)}">Songs by ${esc(info.name)}</button>
+      ${info.wikiUrl ? `<button class="text-btn" data-ext="${esc(info.wikiUrl)}">Bio from Wikipedia</button>` : ''}
+    </div>`;
 }
 
 // ---------- rows & cards ----------
@@ -393,7 +457,7 @@ function trackRow(t, i, { attr = 'data-ci', art = true, num = false } = {}) {
   return `<button class="row" ${attr}="${i}" data-tid="${esc(t.id)}">
     ${num ? `<span class="row-num">${i + 1}</span>` : ''}
     ${art ? `<img src="${esc(t.image || PLACEHOLDER)}" alt="" loading="lazy" />` : ''}
-    <span class="row-meta"><b>${esc(t.name)}</b><span>${esc(t.artists)}</span></span>
+    <span class="row-meta"><b>${esc(t.name)}</b><span>${t.explicit ? '<i class="e-badge" title="Explicit">E</i>' : ''}${esc(t.artists)}</span></span>
     <span class="row-eq">${eqBars}</span>
     <span class="row-dur">${fmt(t.duration)}</span></button>`;
 }
@@ -502,11 +566,12 @@ function setView(html) {
 async function render(scrollTop = false) {
   const my = ++renderReq;
   const r = route();
-  setActiveTab(['home', 'library', 'liked', 'search'].includes(r.name) ? r.name : null);
+  setActiveTab(['home', 'library', 'liked', 'search', 'settings'].includes(r.name) ? r.name : null);
   if (scrollTop) view.scrollTo({ top: 0 });
   view.dataset.page = r.name;
   if (r.name === 'library') return renderLibrary();
   if (r.name === 'search') return renderSearch();
+  if (r.name === 'settings') return renderSettingsPage();
   if (['liked', 'playlist', 'album'].includes(r.name)) return renderCollection(r.name, r.id, my);
   return renderHome();
 }
@@ -748,7 +813,7 @@ async function keepAwake(on) {
     /* not allowed right now */
   }
 }
-document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && immersiveOpen() && keepAwake(true));
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && immersiveOpen() && S.settings.keepAwake !== false && keepAwake(true));
 
 let calmTimer;
 function wake() {
@@ -769,7 +834,7 @@ function toggleImmersive() {
     $('#immersive').setAttribute('aria-hidden', String(!open));
     if (open) lyImm.update(S.player.position());
   });
-  keepAwake(open);
+  keepAwake(open && S.settings.keepAwake !== false);
   if (open) wake();
 }
 
@@ -930,21 +995,67 @@ function renderSettings() {
       ${seg('lyricAlign', [['left', 'Left'], ['center', 'Centered']])}
       ${slider('lyricSize', 'Lyric size', 0.8, 1.5, 0.05, (v) => `${Math.round(v * 100)}%`)}
     </section>
-    ${
-      isNative
-        ? `<section><h3>Playback</h3>
-      ${toggle('inAppPlayback', 'Play inside Spotifier')}
-      <p class="fine">On: music plays right here, no Spotify app needed (experimental, needs Premium). Off: Spotifier controls the Spotify app instead. Changing this restarts Spotifier.</p>
-    </section>`
-        : ''
-    }
-    <section><h3>Account</h3>
-      <p class="muted">${isDemo() ? 'You’re in demo mode.' : `Connected as <b>${esc(S.me?.display_name || 'you')}</b>.`}</p>
-      <div class="modal-actions">${
-        isDemo() ? `<button class="pill-white" data-act="connect">Connect Spotify</button>` : `<button class="pill" data-act="logout">${icons.logout} Disconnect</button>`
-      }</div>
-    </section>
     <button class="pill wide" data-act="reset-look">Reset the look</button>`;
+}
+
+// ---------- Settings page (You tab): everything that isn't about the look ----------
+function renderSettingsPage() {
+  const s = S.settings;
+  const on = (k) => s[k] !== false;
+  const tog = (key, label, sub = '') =>
+    `<label class="set-row"><span class="set-text"><b>${label}</b>${sub ? `<small>${sub}</small>` : ''}</span><span class="toggle"><input type="checkbox" data-set="${key}" ${on(key) ? 'checked' : ''} /><i></i></span></label>`;
+  const link = (act, label, value = '', icon = icons.chevronRight) =>
+    `<button class="set-row" data-act="${act}"><span class="set-text"><b>${label}</b></span><span class="set-value">${value}</span>${icon}</button>`;
+  const avatar = S.me?.images?.length ? bestImage(S.me.images, 120) : '';
+  const sleepState = S.sleep ? (S.sleep.endOfSong ? 'End of song' : `${Math.max(0, Math.round((S.sleep.until - Date.now()) / 60000))} min`) : 'Off';
+  setView(`
+    <h1 class="title page-title">You</h1>
+    <div class="account lg">
+      <span class="avatar-lg">${avatar ? `<img src="${esc(avatar)}" alt="" />` : icons.user}</span>
+      <span class="set-text"><b>${isDemo() ? 'Demo mode' : esc(S.me?.display_name || 'Spotify')}</b><small>${isDemo() ? 'Not connected' : S.me?.product === 'premium' ? 'Spotify Premium' : esc(S.me?.product || '')}</small></span>
+      ${isDemo() ? '<button class="pill-white small" data-act="connect">Connect</button>' : '<button class="pill small" data-act="logout">Disconnect</button>'}
+    </div>
+
+    <h2 class="group-title">Playback</h2>
+    <div class="group">
+      ${isNative ? tog('inAppPlayback', 'Play inside Spotifier', 'Music plays right here, no Spotify app needed (experimental). Restarts the app.') : ''}
+      <div class="set-row column"><span class="set-text"><b>Start music on</b><small>When another device is already playing</small></span>
+        <div class="seg lg" role="group"><button data-seg="playOn" data-val="here" class="${s.playOn !== 'active' ? 'on' : ''}">This device</button><button data-seg="playOn" data-val="active" class="${s.playOn === 'active' ? 'on' : ''}">Device that’s playing</button></div></div>
+      ${tog('skipExplicit', 'Skip explicit songs')}
+      ${link('sleep', 'Sleep timer', sleepState)}
+      ${isDemo() ? '' : link('device', 'Devices')}
+    </div>
+
+    <h2 class="group-title">Lyrics</h2>
+    <div class="group">
+      ${tog('wordSync', 'Word-by-word highlight', 'Off lights up the whole line at once')}
+      ${tog('keepAwake', 'Keep screen on in full-screen lyrics')}
+      ${link('lyrics-timing', 'Lyrics timing for this song')}
+    </div>
+
+    <h2 class="group-title">Now Playing</h2>
+    <div class="group">
+      ${tog('showArtist', 'About the artist', 'Photo, bio and genres under the lyrics')}
+      ${tog('doubleTapLike', 'Double-tap cover to like')}
+      ${tog('swipeSkip', 'Swipe mini player to skip')}
+      ${isNative ? tog('haptics', 'Vibration on taps') : ''}
+    </div>
+
+    <h2 class="group-title">Data</h2>
+    <div class="group">
+      ${tog('dataSaver', 'Data saver', 'Smaller covers and a still background')}
+      ${link('clear-cache', 'Clear saved lyrics and artist info', '', '')}
+      ${link('reset-timing', 'Reset lyric timing for all songs', '', '')}
+    </div>
+
+    <h2 class="group-title">Look</h2>
+    <div class="group">${link('customize', 'Customize the look')}</div>
+
+    <h2 class="group-title">About</h2>
+    <div class="group about-app">
+      <div class="set-row"><span class="set-text"><b>Spotifier</b></span><span class="set-value">${__APP_VERSION__}</span></div>
+      <p class="fine pad-x">Spotifier is an unofficial app and isn’t affiliated with Spotify. Lyrics from LRCLIB · artist bios from Wikipedia.</p>
+    </div>`);
 }
 
 const COLOR_KEYS = ['c1', 'c2', 'c3', 'bgA', 'bgB'];
@@ -955,8 +1066,8 @@ function updateSetting(key, value) {
   saveSettings(S.settings);
 }
 
-$('#settings-body').addEventListener('input', (e) => {
-  const el = e.target.closest('[data-set]');
+document.addEventListener('input', (e) => {
+  const el = e.target.closest?.('[data-set]');
   if (!el) return;
   const key = el.dataset.set;
   const v = el.type === 'checkbox' ? el.checked : el.type === 'range' ? Number(el.value) : el.value;
@@ -1011,7 +1122,40 @@ const actions = {
   back: () => (history.length > 1 ? history.back() : (location.hash = '#/home')),
   settings: () => {
     closeModal();
+    if (playerOpen()) closePlayer();
+    if (immersiveOpen()) toggleImmersive();
+    location.hash = '#/settings';
+  },
+  customize: () => {
+    closeModal();
     openSheet();
+  },
+  queue: () => {
+    closeModal();
+    queueMenu();
+  },
+  'open-album': () => {
+    const t = S.player.state.track;
+    if (!t?.albumId || isDemo()) return toast(isDemo() ? 'Albums open once you connect Spotify.' : 'No album for this song.');
+    closePlayer();
+    location.hash = `#/album/${t.albumId}`;
+  },
+  'toggle-bio': (el) => el.classList.toggle('open'),
+  'clear-cache': () => {
+    clearLyricsCache();
+    clearArtistCache();
+    aboutFor = null;
+    toast('Cleared. Lyrics and artist info will load fresh.');
+  },
+  'reset-timing': () => {
+    try {
+      Object.keys(localStorage).filter((k) => k.startsWith('spotifier.lyricOffset.')).forEach((k) => localStorage.removeItem(k));
+    } catch {
+      /* ignore */
+    }
+    lyMain.setOffset(0);
+    lyImm.setOffset(0);
+    toast('Lyric timing reset for all songs');
   },
   'close-sheet': closeSheet,
   'close-modal': closeModal,
@@ -1083,6 +1227,7 @@ document.addEventListener('click', (e) => {
   if ((el = t.closest('[data-open-album]'))) return (location.hash = `#/album/${el.dataset.openAlbum}`);
   if (t.closest('[data-open-liked]')) return (location.hash = '#/liked');
   if ((el = t.closest('[data-artist]'))) {
+    if (playerOpen()) closePlayer();
     S.query = el.dataset.artist;
     if (route().name === 'search') {
       $('#search-input').value = S.query;
@@ -1108,8 +1253,10 @@ document.addEventListener('click', (e) => {
   }
   if ((el = t.closest('[data-seg]'))) {
     updateSetting(el.dataset.seg, el.dataset.val);
+    if (route().name === 'settings') renderSettingsPage();
     return renderSettings();
   }
+  if ((el = t.closest('[data-ext]'))) return openExternal(el.dataset.ext);
   if ((el = t.closest('[data-copy]'))) {
     navigator.clipboard?.writeText(el.dataset.copy).then(() => toast('Copied'));
     return;
@@ -1236,7 +1383,7 @@ swipeToClose($('#immersive'), { canStart: (e) => !e.target.closest('.lyrics-box'
     x0 = null;
     const meta = mini.querySelector('.mini-meta');
     meta.style.translate = '';
-    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+    if (S.settings.swipeSkip !== false && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
       swallowClick = true;
       haptic('Medium');
       dx < 0 ? S.player.next() : S.player.prev();
@@ -1252,6 +1399,7 @@ swipeToClose($('#immersive'), { canStart: (e) => !e.target.closest('.lyrics-box'
   const art = $('.player-art');
   let timer = null;
   art.addEventListener('click', () => {
+    if (S.settings.doubleTapLike === false) return toggleImmersive();
     if (timer) {
       clearTimeout(timer);
       timer = null;

@@ -29,7 +29,7 @@
           <a href="#/home" data-tab="home"><span data-icon="home"></span><b>Home</b></a>
           <a href="#/library" data-tab="library"><span data-icon="grid"></span><b>Library</b></a>
           <a href="#/liked" data-tab="liked"><span data-icon="heartOutline"></span><b>Liked</b></a>
-          <button data-act="settings" data-tab="settings" aria-label="Customize"><span data-icon="user"></span><b>You</b></button>
+          <a href="#/settings" data-tab="settings"><span data-icon="user"></span><b>You</b></a>
         </nav>
         <a href="#/search" class="circle lg search-bubble" data-tab="search" aria-label="Search"><span data-icon="search"></span></a>
       </div>
@@ -78,10 +78,15 @@
           </div>
           <div class="lyrics-box" id="lyrics-main"></div>
         </div>
-        <div class="section-block upnext">
-          <div class="card-head"><b>Up next</b></div>
-          <div id="queue-list" class="rows"></div>
-        </div>
+        <button class="album-row" data-act="open-album" aria-label="Open album">
+          <img class="np-art" alt="" />
+          <span class="row-meta"><span class="kicker">From the album</span><b class="np-album">—</b></span>
+          <span data-icon="chevronRight"></span>
+        </button>
+        <section class="section-block about" id="about" aria-label="About the artist">
+          <div class="card-head"><b>About the artist</b></div>
+          <div id="about-body"></div>
+        </section>
         <p class="device-line"></p>
       </div>
     </section>

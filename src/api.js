@@ -59,6 +59,7 @@ export const Spotify = {
     }
   },
   album: (id) => api(`/albums/${id}`),
+  artist: (id) => api(`/artists/${id}`),
   saved: () => api('/me/tracks?limit=50'),
   recent: () => api('/me/player/recently-played?limit=30'),
   top: () => api('/me/top/tracks?limit=20&time_range=short_term'),
@@ -98,7 +99,14 @@ export const Spotify = {
   transfer: (id, play = false) => api('/me/player', { method: 'PUT', body: { device_ids: [id], play } }),
 };
 
+// Data saver: ask for smaller covers everywhere
+let maxImage = 640;
+export function setImageSize(px) {
+  maxImage = px;
+}
+
 export function bestImage(images, prefer = 640) {
+  prefer = Math.min(prefer, maxImage);
   if (!images?.length) return '';
   const sorted = [...images].sort((a, b) => (b.width || b.height || 0) - (a.width || a.height || 0));
   return (sorted.find((i) => (i.width || i.height || 0) <= prefer) || sorted[0]).url;
@@ -114,6 +122,7 @@ export function normTrack(t, albumFallback) {
     name: t.name || 'Unknown',
     artists: (t.artists || []).map((a) => a.name).join(', ') || t.show?.name || '',
     artistList: (t.artists || []).map((a) => a.name),
+    artistRefs: (t.artists || []).map((a) => ({ id: a.id || a.uri?.split(':').pop(), name: a.name })),
     album: album.name || t.show?.name || '',
     albumId: album.id || album.uri?.split(':').pop(),
     image: bestImage(album.images || t.images || t.show?.images),

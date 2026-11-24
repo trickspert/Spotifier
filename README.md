@@ -54,7 +54,8 @@ Open **http://127.0.0.1:5173**, paste your Client ID, and connect. On a computer
 - **Tap the cover** for full-screen lyrics. **Double-tap** it to like the song.
 - **Sleep timer:** ⋯ → Sleep timer (15–60 minutes, or the end of the song).
 - Full-screen lyrics keep your screen on, and the controls fade away until you touch the screen.
-- In the **You** tab you can choose left-aligned or centered lyrics, the lyric style and size, and how strong the glass refraction is.
+- **About the artist:** scroll down in Now Playing for the artist's photo, bio (from Wikipedia), genres, followers when Spotify provides them, and the album the song is from. The play queue is under **⋯ → Up next**.
+- **You tab = Settings:** playback (where music starts, skip explicit songs, sleep timer, devices), lyrics, gestures, data saver and more. The look (themes, glass, titles, lyric style) is under **You → Customize the look**.
 
 ## If something goes wrong
 

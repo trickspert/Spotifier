@@ -31,6 +31,16 @@ export const DEFAULTS = {
   lyricsStyle: 'bubbles', // 'bubbles' | 'karaoke' | 'glow'
   lyricAlign: 'left', // 'left' (like Apple Music) | 'center'
   inAppPlayback: true, // Android: play inside Spotifier instead of through the Spotify app
+  // ---- app settings (You tab) ----
+  playOn: 'here', // 'here' = start music on this device, 'active' = on whatever device is already playing
+  skipExplicit: false,
+  wordSync: true, // light lyrics up word by word (off = whole line at once)
+  keepAwake: true, // keep the screen on in full-screen lyrics
+  showArtist: true, // "About the artist" in Now Playing
+  doubleTapLike: true,
+  swipeSkip: true, // swipe the mini player to skip
+  haptics: true,
+  dataSaver: false, // smaller covers, still backdrop
   lyricSize: 1,
 };
 

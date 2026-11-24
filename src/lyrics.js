@@ -151,6 +151,7 @@ export class LyricsView {
     this.box = null;
     this.glassReq = 0;
     this.offset = 0; // lyric timing adjustment (ms), set per song by the user
+    this.wordSync = true; // false = light the whole line at once
     this.timing = []; // per line: [{s, e}] for each word
     this.wIdx = -1;
     this.lastWp = -1;
@@ -247,6 +248,10 @@ export class LyricsView {
     this.offset = ms;
   }
 
+  setWordSync(on) {
+    this.wordSync = on;
+  }
+
   update(pos) {
     if (!this.synced || !this.lines.length) return;
     pos += this.offset;
@@ -261,6 +266,7 @@ export class LyricsView {
       this.lastWp = -1;
       this.words = i >= 0 ? [...this.nodes[i].querySelectorAll('.w')] : [];
       this.words.forEach((w) => w.classList.remove('sung', 'now'));
+      if (!this.wordSync) this.words.forEach((w) => w.classList.add('now'));
       this.nodes.forEach((n, k) => {
         n.classList.toggle('active', k === i);
         n.classList.toggle('past', k < i);
@@ -283,7 +289,7 @@ export class LyricsView {
       }
       // word-by-word highlight
       const wt = this.timing[i];
-      if (wt?.length && this.words?.length) {
+      if (this.wordSync && wt?.length && this.words?.length) {
         let w = this.wIdx;
         while (w + 1 < wt.length && wt[w + 1].s <= pos) w++;
         if (w !== this.wIdx) {
@@ -353,4 +359,8 @@ export class LyricsView {
     this.track.classList.toggle('instant', !!instant);
     this.track.style.transform = `translate3d(0, ${Math.round(base + this.manual)}px, 0)`;
   }
+}
+
+export function clearLyricsCache() {
+  cache.clear();
 }

@@ -208,7 +208,9 @@ export class SpotifyPlayer extends BasePlayer {
     }
   }
 
+  /** preferHere: start music on this device even if another one is active (setting "Start music on"). */
   _target() {
+    if (this.preferHere && this.deviceId && !this.sdkFailed) return this.deviceId;
     return this.remote ? undefined : this.deviceId || undefined;
   }
 
