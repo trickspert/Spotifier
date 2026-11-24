@@ -17,10 +17,10 @@ export const DEFAULTS = {
   reactive: 'all', // 'off' | 'background' | 'all': colors follow the album art
   backdrop: 'art', // 'art' = the cover melts into the whole background, 'aurora' = soft color glow
   cover: 'melt', // 'melt' = cover dissolves into the background, 'frame' = rounded card
-  blur: 7, // px of frosting behind the glass (low = clear glass, so the refraction shows)
-  refraction: 70, // how strongly glass edges bend what's behind them (0 = off)
-  glass: 0.5, // how solid the glass looks (0..1)
-  radius: 28, // corner roundness of cards
+  blur: 1, // px of frosting behind the glass (low = clear glass, so the refraction shows)
+  refraction: 39, // how strongly glass edges bend what's behind them (0 = off)
+  glass: 0.2, // how solid the glass looks (0..1)
+  radius: 31, // corner roundness of cards
   tilt: true, // covers and cards tilt toward the mouse
   bubbles: false, // floating soap bubbles in the background
   bubbleCount: 14,
@@ -28,7 +28,7 @@ export const DEFAULTS = {
   light: true, // light that follows the cursor across glass
   lightStrength: 0.55,
   titleStyle: 'clean', // 'clean' | 'chrome' | 'bubbly' | 'serif'
-  lyricsStyle: 'bubbles', // 'bubbles' | 'karaoke' | 'glow'
+  lyricsStyle: 'karaoke', // 'bubbles' | 'karaoke' | 'glow'
   lyricAlign: 'left', // 'left' (like Apple Music) | 'center'
   inAppPlayback: true, // Android: play inside Spotifier instead of through the Spotify app
   // ---- app settings (You tab) ----
@@ -41,7 +41,7 @@ export const DEFAULTS = {
   swipeSkip: true, // swipe the mini player to skip
   haptics: true,
   dataSaver: false, // smaller covers, still backdrop
-  lyricSize: 1,
+  lyricSize: 1.4,
 };
 
 const KEY = 'spotifier.settings';
