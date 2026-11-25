@@ -79,10 +79,12 @@ const shuffle = (a) => {
   return a;
 };
 
-async function smartMix(prompt, size) {
+async function smartMix(prompt, size, aiSearches = []) {
   const { terms, genres, years, leftovers } = readPrompt(prompt);
   const yearQ = years ? ` year:${years}` : '';
   const queries = new Set();
+  // phrases written by the on-device AI come first: it understood what you meant
+  for (const q of aiSearches.slice(0, 4)) queries.add(`${q.replace(/\b(19|20)?[0-9]0'?s\b/g, '').trim()}${yearQ}`);
   for (const g of genres.slice(0, 3)) queries.add(`genre:"${g.replace('rnb', 'r&b')}"${yearQ}`);
   for (const t of terms.slice(0, 5)) queries.add(`${t}${genres[0] ? ` ${genres[0]}` : ''}${yearQ}`);
   if (leftovers && leftovers.split(' ').length <= 6) queries.add(`${leftovers}${yearQ}`);
@@ -100,7 +102,7 @@ async function smartMix(prompt, size) {
   for (let i = 0; i < 10; i++) for (const list of results) if (list[i]) pool.push(list[i]);
   const tracks = diversify(pool, size);
   const title = prompt.trim().replace(/^./, (c) => c.toUpperCase()).slice(0, 60);
-  return { title, tracks, engine: 'smart' };
+  return { title, tracks, engine: aiSearches.length ? 'local' : 'smart' };
 }
 
 // ---------- AI engine (Claude, with the user's own API key) ----------
@@ -166,7 +168,7 @@ async function aiMix(prompt, size, apiKey) {
 }
 
 /** Builds a mix. Uses Claude when an API key is saved, otherwise the built-in smart engine. */
-export async function makeMix(prompt, { size = 25, apiKey = '', demo = false, demoTracks = [] } = {}) {
+export async function makeMix(prompt, { size = 25, apiKey = '', demo = false, demoTracks = [], aiSearches = [] } = {}) {
   if (demo) return { title: prompt ? prompt.replace(/^./, (c) => c.toUpperCase()) : 'Demo mix', tracks: shuffle([...demoTracks]).slice(0, size), engine: 'demo' };
   if (apiKey) {
     try {
@@ -179,7 +181,7 @@ export async function makeMix(prompt, { size = 25, apiKey = '', demo = false, de
       throw e;
     }
   }
-  return smartMix(prompt, size);
+  return smartMix(prompt, size, aiSearches);
 }
 
 /** Saves a mix as a private playlist in the user's Spotify library. */

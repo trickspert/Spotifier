@@ -12,6 +12,7 @@ import { LyricsView, getLyrics, clearLyricsCache } from './lyrics.js';
 import { Spotify, normTrack, bestImage, playlistEntryTrack, setImageSize } from './api.js';
 import { getArtistInfo, clearArtistCache, compactNumber } from './artist.js';
 const mixer = () => import('./mixer.js'); // loaded the first time you make a mix
+const localai = () => import('./localai.js'); // on-device AI, loaded only if you turn it on
 import { handleCallback, isLoggedIn, login, logout, getClientId, setClientId, redirectUri, redirectLooksValid } from './auth.js';
 import { demoTracks, demoPlaylists } from './demo.js';
 import { isNative, NATIVE_REDIRECT, onAppUrl, closeBrowser, onBackButton, onResume, minimize, setStatusBar, openSpotifyApp, haptic, setHaptics, openExternal, showNowPlaying, hideNowPlaying, onNowPlayingAction, eqInfo, eqSet, eqOpenSystem } from './native.js';
@@ -1020,10 +1021,11 @@ let lastMix = null;
 
 function renderMix() {
   const ai = !!getAiKey() && !isDemo();
+  const engine = ai ? 'AI picks · Claude' : S.settings.localAi && !isDemo() ? 'On-device AI · Qwen 3' : 'Smart mix';
   setView(`
     <button class="circle lg back-fab" data-act="back" aria-label="Back" data-icon="back"></button>
     <div class="mix-head">
-      <span class="kicker">${ai ? 'AI picks · Claude' : 'Smart mix'}</span>
+      <span class="kicker">${engine}</span>
       <h1 class="title page-title">Mix maker</h1>
       <p class="muted">Describe a vibe, a moment or a genre, and get a playlist.</p>
     </div>
@@ -1033,7 +1035,7 @@ function renderMix() {
       .join('')}</div>
     <div class="seg lg mix-size" role="group">${[15, 25, 40].map((n) => `<button data-mix-size="${n}" class="${S.mixSize === n ? 'on' : ''}">${n} songs</button>`).join('')}</div>
     <button class="pill-white wide" data-act="make-mix">${icons.sparkle}<span>Make mix</span></button>
-    ${ai || isDemo() ? '' : '<p class="fine">Want AI picks? Add an Anthropic API key in You → Mix maker, and Claude chooses the songs.</p>'}
+    ${ai || isDemo() || S.settings.localAi ? '' : '<p class="fine">Want it to understand you better? Turn on the free on-device AI, or add a Claude key, in You → Mix maker.</p>'}
     <div id="mix-result">${lastMix ? mixResultHTML(lastMix) : ''}</div>`);
   const input = $('#mix-input');
   input.addEventListener('input', () => (S.mixPrompt = input.value));
@@ -1041,7 +1043,7 @@ function renderMix() {
 }
 
 function mixResultHTML(m) {
-  const by = { ai: 'Picked by Claude', smart: 'Smart mix', demo: 'Demo mix' }[m.engine];
+  const by = { ai: 'Picked by Claude', local: 'Understood on-device', smart: 'Smart mix', demo: 'Demo mix' }[m.engine];
   return `<div class="mix-result">
     <span class="kicker">${by} · ${m.tracks.length} songs</span>
     <h2 class="title">${esc(m.title)}</h2>
@@ -1073,6 +1075,33 @@ function aiKeyMenu() {
     </div>
   </div>`);
 }
+
+// ---------- on-device AI ----------
+async function localAiMenu(progressHTML = '') {
+  const { LOCAL_MODEL, isDownloaded } = await localai();
+  const have = await isDownloaded();
+  const on = !!S.settings.localAi;
+  showModal(`<div class="modal-card lg">
+    <span class="kicker">Mix maker</span>
+    <h2 class="title">On-device AI</h2>
+    <p class="muted">A small AI model (${LOCAL_MODEL.name} by ${LOCAL_MODEL.by}, ${LOCAL_MODEL.license}) runs right on your phone and understands what you ask for, like “something to cry to but kinda upbeat”, then turns it into precise Spotify searches. Free, and nothing you type leaves your phone.</p>
+    <ul class="facts">
+      <li><b>${LOCAL_MODEL.size}</b> one-time download${have ? ' (already on this phone)' : '. Wi-Fi recommended'}</li>
+      <li>A mix takes about 10–20 seconds to think</li>
+      <li>It understands requests; the songs come from Spotify search</li>
+    </ul>
+    <div id="ai-progress">${progressHTML}</div>
+    <div class="modal-actions">
+      ${on ? '<button class="pill" data-act="local-ai-off">Turn off</button>' : `<button class="pill-white" data-act="local-ai-on">${have ? 'Turn on' : 'Download and turn on'}</button>`}
+      ${have ? '<button class="pill" data-act="local-ai-delete">Delete model</button>' : ''}
+      <button class="pill" data-act="close-modal">Close</button>
+    </div>
+  </div>`);
+}
+const progressBar = (loaded, total) => {
+  const pct = total ? Math.round((loaded / total) * 100) : 0;
+  return `<div class="dl"><i style="width:${pct}%"></i></div><p class="fine">${total ? `${Math.round(loaded / 1e6)} of ${Math.round(total / 1e6)} MB` : 'Starting…'}</p>`;
+};
 
 // ---------- equalizer ----------
 const EQ_PRESETS = {
@@ -1107,11 +1136,11 @@ async function eqMenu() {
   const saved = S.settings.eqLevels;
   const levels = saved?.length === info.bands.length ? saved : info.bands.map((b) => b.level);
   eqState = { ...info, levels, enabled: !!S.settings.eqEnabled };
-  showModal(`<div class="modal-card lg eq">
+  showModal(`<div class="modal-card lg eq-card">
     <div class="eq-head"><h2 class="title">Equalizer</h2>
       <label class="toggle"><input type="checkbox" data-eq-toggle ${eqState.enabled ? 'checked' : ''} /><i></i></label></div>
     <div class="chips-row">${Object.keys(EQ_PRESETS).map((k) => `<button class="tag" data-eq-preset="${k}">${k}</button>`).join('')}</div>
-    <div class="eq-bands">${info.bands
+    <div class="eq-bands lg">${info.bands
       .map(
         (b, i) => `<label class="eq-band"><em data-eq-db="${i}">${(levels[i] / 100).toFixed(1)}</em>
           <input type="range" data-band="${i}" min="${info.min}" max="${info.max}" step="50" value="${levels[i]}" aria-label="${hzLabel(b.hz)} Hz" />
@@ -1168,7 +1197,7 @@ function renderSettingsPage() {
     </div>
 
     <h2 class="group-title">Playback</h2>
-    <div class="group">
+    <div class="group lg">
       ${isNative ? tog('inAppPlayback', 'Play inside Spotifier', 'Music plays right here, no Spotify app needed (experimental). Restarts the app.') : ''}
       <div class="set-row column"><span class="set-text"><b>Start music on</b><small>When another device is already playing</small></span>
         <div class="seg lg" role="group"><button data-seg="playOn" data-val="here" class="${s.playOn !== 'active' ? 'on' : ''}">This device</button><button data-seg="playOn" data-val="active" class="${s.playOn === 'active' ? 'on' : ''}">Device that’s playing</button></div></div>
@@ -1179,20 +1208,21 @@ function renderSettingsPage() {
     </div>
 
     <h2 class="group-title">Mix maker</h2>
-    <div class="group">
+    <div class="group lg">
       ${link('mix', 'Make a mix')}
+      ${link('local-ai', 'On-device AI (Qwen 3)', S.settings.localAi ? 'On' : 'Off')}
       ${isDemo() ? '' : link('ai-key', 'AI picks with Claude', getAiKey() ? 'On' : 'Off')}
     </div>
 
     <h2 class="group-title">Lyrics</h2>
-    <div class="group">
+    <div class="group lg">
       ${tog('wordSync', 'Word-by-word highlight', 'Off lights up the whole line at once')}
       ${tog('keepAwake', 'Keep screen on in full-screen lyrics')}
       ${link('lyrics-timing', 'Lyrics timing for this song')}
     </div>
 
     <h2 class="group-title">Now Playing</h2>
-    <div class="group">
+    <div class="group lg">
       ${tog('showArtist', 'About the artist', 'Photo, bio and genres under the lyrics')}
       ${tog('doubleTapLike', 'Double-tap cover to like')}
       ${tog('swipeSkip', 'Swipe mini player to skip')}
@@ -1200,19 +1230,19 @@ function renderSettingsPage() {
     </div>
 
     <h2 class="group-title">Data</h2>
-    <div class="group">
+    <div class="group lg">
       ${tog('dataSaver', 'Data saver', 'Smaller covers and a still background')}
       ${link('clear-cache', 'Clear saved lyrics and artist info', '', '')}
       ${link('reset-timing', 'Reset lyric timing for all songs', '', '')}
     </div>
 
     <h2 class="group-title">Look</h2>
-    <div class="group">${link('customize', 'Customize the look')}</div>
+    <div class="group lg">${link('customize', 'Customize the look')}</div>
 
     <h2 class="group-title">About</h2>
     <div class="group about-app">
       <div class="set-row"><span class="set-text"><b>Spotifier</b></span><span class="set-value">${__APP_VERSION__}</span></div>
-      <p class="fine pad-x">Spotifier is an unofficial app and isn’t affiliated with Spotify. Lyrics from LRCLIB · artist bios from Wikipedia.</p>
+      <p class="fine pad-x">Spotifier is an unofficial app and isn’t affiliated with Spotify. Lyrics from LRCLIB · artist bios from Wikipedia · on-device AI: Qwen 3 0.6B (Apache-2.0) via transformers.js.</p>
     </div>`);
 }
 
@@ -1308,10 +1338,24 @@ const actions = {
     if (!prompt) return toast('Describe a vibe first, like “late night drive”.');
     S.mixPrompt = prompt;
     const out = $('#mix-result');
-    if (out) out.innerHTML = `<div class="loader"><i></i><i></i><i></i></div><p class="muted center">${getAiKey() && !isDemo() ? 'Claude is picking songs…' : 'Mixing…'}</p>`;
+    const claude = !!getAiKey() && !isDemo();
+    const status = (html) => $('#mix-result') && ($('#mix-result').innerHTML = html);
+    status(`<div class="loader"><i></i><i></i><i></i></div><p class="muted center">${claude ? 'Claude is picking songs…' : S.settings.localAi && !isDemo() ? 'Understanding your request on-device…' : 'Mixing…'}</p>`);
     try {
+      let aiSearches = [];
+      if (!claude && S.settings.localAi && !isDemo()) {
+        try {
+          const { understand } = await localai();
+          aiSearches = await understand(prompt, (l, t) =>
+            status(`<p class="muted center">Loading the on-device AI…</p>${progressBar(l, t)}`),
+          );
+          status(`<div class="loader"><i></i><i></i><i></i></div><p class="muted center">Finding songs for: ${aiSearches.map(esc).join(' · ') || esc(prompt)}</p>`);
+        } catch {
+          toast('The on-device AI couldn’t run, so this mix uses keyword matching.', 'warn');
+        }
+      }
       const { makeMix } = await mixer();
-      lastMix = await makeMix(prompt, { size: S.mixSize, apiKey: isDemo() ? '' : getAiKey(), demo: isDemo(), demoTracks: demoTracks() });
+      lastMix = await makeMix(prompt, { size: S.mixSize, apiKey: isDemo() ? '' : getAiKey(), demo: isDemo(), demoTracks: demoTracks(), aiSearches });
       if (!lastMix.tracks.length) throw new Error('Couldn’t find songs for that. Try other words.');
       if (route().name === 'mix') {
         $('#mix-result').innerHTML = mixResultHTML(lastMix);
@@ -1364,6 +1408,36 @@ const actions = {
     }
     closeModal();
     toast('Key removed. Mixes use the built-in smart mix.');
+    if (route().name === 'settings') renderSettingsPage();
+  },
+  'local-ai': () => localAiMenu(),
+  'local-ai-on': async () => {
+    const { loadModel } = await localai();
+    const box = () => $('#ai-progress');
+    if (box()) box().innerHTML = progressBar(0, 0);
+    try {
+      await loadModel((l, t) => box() && (box().innerHTML = progressBar(l, t)));
+      updateSetting('localAi', true);
+      closeModal();
+      toast('On-device AI is on. Your next mix is understood right on your phone.', 'ok');
+      if (route().name === 'settings') renderSettingsPage();
+      if (route().name === 'mix') renderMix();
+    } catch (e) {
+      if (box()) box().innerHTML = `<p class="note error">Couldn’t download the model: ${esc(e.message)}. Check your connection and try again.</p>`;
+    }
+  },
+  'local-ai-off': () => {
+    updateSetting('localAi', false);
+    closeModal();
+    toast('On-device AI is off.');
+    if (route().name === 'settings') renderSettingsPage();
+  },
+  'local-ai-delete': async () => {
+    const { deleteModels } = await localai();
+    await deleteModels();
+    updateSetting('localAi', false);
+    closeModal();
+    toast('Model deleted. Space freed.');
     if (route().name === 'settings') renderSettingsPage();
   },
   eq: eqMenu,

@@ -854,3 +854,71 @@ button.set-row:active, label.set-row:active { background: var(--hover); }
 @keyframes imm-breathe { 50% { box-shadow: inset 1.5px 1.5px 1px -1px rgba(255, 255, 255, 0.75), inset -1.5px -1.5px 1px -1px rgba(255, 255, 255, 0.35), 0 0 44px -6px color-mix(in srgb, var(--c1) 90%, transparent), 0 12px 28px -12px rgba(0, 0, 0, 0.55); } }
 .imm-progress { height: 22px; }
 .imm-progress .range-thumb { width: 28px; height: 18px; }
+
+/* ============================================================
+   Full-screen lyrics use the whole screen; header and controls float over them,
+   so when the controls fade away the words already reach the edges
+   ============================================================ */
+.immersive .lyrics-box.big {
+  position: absolute; z-index: 1; top: 0; bottom: 0; left: 12px; right: 12px; height: auto;
+  -webkit-mask-image: linear-gradient(transparent, #000 9%, #000 88%, transparent); mask-image: linear-gradient(transparent, #000 9%, #000 88%, transparent);
+}
+.immersive .imm-head { position: absolute; z-index: 3; top: calc(var(--sat) + 10px); left: 12px; right: 12px; }
+.immersive .imm-controls { position: absolute; z-index: 3; bottom: calc(var(--sab) + 12px); left: 12px; right: 12px; }
+@media (min-width: 900px) {
+  .immersive .lyrics-box.big { left: calc(min(52vw, 100vh) + 3vw); right: 5vw; }
+  .immersive .imm-head, .immersive .imm-controls { left: calc(min(52vw, 100vh) + 3vw); right: auto; width: min(620px, calc(100vw - min(52vw, 100vh) - 8vw)); }
+}
+
+/* ============================================================
+   Logos: dark graphite with a deep red glow (no light blue, white or teal)
+   ============================================================ */
+:root { --logo-hi: #3c3c44; --logo-lo: #121215; --logo-red: #b4232f; --logo-ink: #f1e6e7; }
+.mix-orb {
+  color: var(--logo-ink);
+  background:
+    radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.32), transparent 30%),
+    radial-gradient(circle at 72% 80%, color-mix(in srgb, var(--logo-red) 90%, transparent), transparent 62%),
+    linear-gradient(145deg, var(--logo-hi), var(--logo-lo));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 8px 22px -8px color-mix(in srgb, var(--logo-red) 75%, transparent);
+}
+.liked-art {
+  color: #e2454f;
+  background:
+    radial-gradient(circle at 28% 20%, rgba(255, 255, 255, 0.18), transparent 38%),
+    linear-gradient(145deg, var(--logo-hi), var(--logo-lo) 62%, #4a0f15);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+.avatar-lg { color: var(--logo-ink); background: radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.25), transparent 34%), linear-gradient(145deg, var(--logo-hi), var(--logo-lo) 70%, #4a0f15); }
+
+/* on-device AI panel */
+.facts { margin: 12px 0; padding-left: 20px; color: var(--text-2); font-size: 14px; line-height: 1.6; }
+.facts b { color: var(--text); }
+.dl { height: 8px; margin: 12px 0 4px; border-radius: 99px; background: var(--track); overflow: hidden; }
+.dl i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #6d6d78, var(--logo-red)); transition: width 0.3s; }
+
+/* equalizer panel */
+.eq-card .chips-row { display: flex; flex-wrap: nowrap; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 10px -26px 0; padding: 2px 26px; }
+.eq-card .chips-row .tag { flex: none; text-transform: capitalize; }
+.eq-card .eq-bands { min-height: 220px; align-items: stretch; }
+.eq-card .eq-band { justify-content: space-between; min-width: 0; }
+.eq-card .eq-band input[type='range'] {
+  -webkit-appearance: none; appearance: none; flex: 1; width: 28px; height: auto; min-height: 150px; margin: 0;
+  background: linear-gradient(90deg, transparent 12px, var(--track) 12px, var(--track) 16px, transparent 16px);
+  accent-color: var(--accent);
+}
+.eq-card .eq-band input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%;
+  background: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+.eq-card .eq-band span { white-space: nowrap; }
+
+/* more of the UI in liquid glass: settings sections, EQ panel, text fields */
+.group.lg { overflow: hidden; border-radius: 26px; }
+.eq-card .eq-bands.lg { background: rgb(var(--fill-rgb) / 0.08); }
+.field input, .field textarea, .mix-input {
+  -webkit-backdrop-filter: blur(14px) saturate(1.6); backdrop-filter: blur(14px) saturate(1.6);
+  box-shadow: inset 1.5px 1.5px 1px -1px rgba(255, 255, 255, 0.55), inset -1px -1px 1px -1px rgba(255, 255, 255, 0.25), inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+}
+.group.lg, .eq-bands.lg { -webkit-backdrop-filter: blur(var(--blur)) saturate(1.2); backdrop-filter: blur(var(--blur)) saturate(1.2); background: rgb(var(--fill-rgb) / 0.07); }
+.refract .group.lg, .refract .eq-bands.lg { backdrop-filter: var(--lens,) blur(var(--blur)) saturate(1.2); }

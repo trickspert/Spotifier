@@ -42,6 +42,7 @@ export const DEFAULTS = {
   swipeSkip: true, // swipe the mini player to skip
   haptics: true,
   dataSaver: false, // smaller covers, still backdrop
+  localAi: false, // Mix maker: on-device AI (Qwen 3) understands requests
   lyricSize: 1.4,
 };
 
