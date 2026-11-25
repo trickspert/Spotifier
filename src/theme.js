@@ -30,6 +30,7 @@ export const DEFAULTS = {
   titleStyle: 'clean', // 'clean' | 'chrome' | 'bubbly' | 'serif'
   lyricsStyle: 'karaoke', // 'bubbles' | 'karaoke' | 'glow'
   lyricAlign: 'left', // 'left' (like Apple Music) | 'center'
+  immersiveStyle: 'classic', // full-screen lyrics: 'classic' | 'vivid' (color glow + depth blur)
   inAppPlayback: true, // Android: play inside Spotifier instead of through the Spotify app
   // ---- app settings (You tab) ----
   playOn: 'here', // 'here' = start music on this device, 'active' = on whatever device is already playing
@@ -104,6 +105,7 @@ export function applyTheme(s, palette) {
   root.dataset.title = s.titleStyle;
   root.dataset.lyrics = s.lyricsStyle;
   root.dataset.align = s.lyricAlign;
+  root.dataset.imm = s.immersiveStyle || 'classic';
   root.dataset.backdrop = s.backdrop;
   root.dataset.cover = s.cover;
   root.dataset.tilt = s.tilt && s.motion > 0 ? 'on' : 'off';

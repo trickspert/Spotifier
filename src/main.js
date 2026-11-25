@@ -999,6 +999,8 @@ function renderSettings() {
     <section><h3>Lyrics</h3>
       ${seg('lyricsStyle', [['bubbles', 'Bubbles'], ['karaoke', 'Karaoke'], ['glow', 'Glow']])}
       ${seg('lyricAlign', [['left', 'Left'], ['center', 'Centered']])}
+      <p class="fine">Full-screen lyrics</p>
+      ${seg('immersiveStyle', [['classic', 'Classic'], ['vivid', 'Vivid glow']])}
       ${slider('lyricSize', 'Lyric size', 0.8, 1.5, 0.05, (v) => `${Math.round(v * 100)}%`)}
     </section>
     <button class="pill wide" data-act="reset-look">Reset the look</button>`;

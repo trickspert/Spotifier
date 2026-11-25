@@ -790,7 +790,7 @@ button.set-row:active, label.set-row:active { background: var(--hover); }
    Full-screen lyrics: less bland
    ============================================================ */
 /* a soft, slowly drifting color glow from the album palette; gray covers get a gentle tint too */
-.immersive::before {
+[data-imm='vivid'] .immersive::before {
   content: ''; position: absolute; inset: -20%; z-index: -1; pointer-events: none; opacity: 0.55;
   background:
     radial-gradient(40% 35% at 20% 25%, color-mix(in srgb, var(--a1) 70%, transparent), transparent 70%),
@@ -800,12 +800,12 @@ button.set-row:active, label.set-row:active { background: var(--hover); }
   animation: drift 26s ease-in-out infinite alternate;
 }
 @keyframes drift { 0% { transform: translate3d(-4%, -3%, 0) rotate(0deg); } 100% { transform: translate3d(4%, 3%, 0) rotate(8deg); } }
-[data-saver] .immersive::before { animation: none; }
+[data-saver] .immersive::before { animation: none !important; }
 /* depth: lines further from the sung one are softly out of focus, like Apple Music */
-.lyrics-box.big .lyric:not(.active) { filter: blur(calc(min(var(--d), 4) * 0.55px)); transition: opacity 0.5s, color 0.5s, filter 0.6s; }
-.lyrics-box.big .lyric.next { filter: none; }
-.lyric.next { opacity: 0.85; color: var(--text-2); }
-[data-saver] .lyrics-box.big .lyric:not(.active) { filter: none; }
+[data-imm='vivid'] .lyrics-box.big .lyric:not(.active) { filter: blur(calc(min(var(--d), 4) * 0.55px)); transition: opacity 0.5s, color 0.5s, filter 0.6s; }
+[data-imm='vivid'] .lyrics-box.big .lyric.next { filter: none; }
+[data-imm='vivid'] .lyric.next { opacity: 0.85; color: var(--text-2); }
+[data-saver] .lyrics-box.big .lyric:not(.active) { filter: none !important; }
 .imm-times { margin: -2px 2px 2px; font-size: 11.5px; }
 .imm-head { box-shadow: inset 1.5px 1.5px 1px -1px rgba(255, 255, 255, 0.7), inset -1.5px -1.5px 1px -1px rgba(255, 255, 255, 0.32), 0 12px 32px -14px rgba(0, 0, 0, 0.5); }
 
@@ -839,3 +839,18 @@ button.set-row:active, label.set-row:active { background: var(--hover); }
 .eq-band { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-2); }
 .eq-band em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--text); font-size: 12px; }
 .eq-band input[type='range'] { writing-mode: vertical-lr; direction: rtl; width: 6px; height: 150px; }
+
+/* Full-screen lyrics control bar: glass bubbles instead of plain arrows */
+.imm-controls { gap: 4px; padding: 14px 16px 12px; }
+.imm-buttons { justify-content: space-between; padding: 2px 2px 0; }
+.imm-buttons .circle.mid { width: 56px; height: 56px; }
+.imm-buttons .circle.mid svg { width: 24px; height: 24px; }
+.imm-buttons .circle.big { width: 70px; height: 70px; }
+.imm-buttons .circle.big svg { width: 30px; height: 30px; }
+.imm-buttons .circle.tiny { width: 38px; height: 38px; color: var(--text-2); }
+.imm-buttons .circle.tiny.on { color: #0e0e13; }
+.imm-play { box-shadow: inset 1.5px 1.5px 1px -1px rgba(255, 255, 255, 0.75), inset -1.5px -1.5px 1px -1px rgba(255, 255, 255, 0.35), 0 0 34px -8px color-mix(in srgb, var(--c1) 80%, transparent), 0 12px 28px -12px rgba(0, 0, 0, 0.55); }
+.is-playing .imm-play { animation: imm-breathe 3.2s ease-in-out infinite; }
+@keyframes imm-breathe { 50% { box-shadow: inset 1.5px 1.5px 1px -1px rgba(255, 255, 255, 0.75), inset -1.5px -1.5px 1px -1px rgba(255, 255, 255, 0.35), 0 0 44px -6px color-mix(in srgb, var(--c1) 90%, transparent), 0 12px 28px -12px rgba(0, 0, 0, 0.55); } }
+.imm-progress { height: 22px; }
+.imm-progress .range-thumb { width: 28px; height: 18px; }

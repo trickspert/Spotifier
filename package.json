@@ -1,7 +1,7 @@
 {
   "name": "spotifier",
   "private": true,
-  "version": "1.7.0",
+  "version": "1.7.1",
   "type": "module",
   "description": "A Liquid Glass Spotify player for web and Android: melting album art, glass bubble controls and color-shifting lyric bubbles.",
   "scripts": {
