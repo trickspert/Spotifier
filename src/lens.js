@@ -70,16 +70,43 @@ function lensMap(W, H, r) {
  * opts.k scales the strength (text needs a much gentler lens than buttons); opts.disperse
  * turns the rainbow rim on or off (default: on for small elements).
  */
+const idOf = new Map(); // key -> filter id once built
+const MAX_LENSES = 60;
+
+/** Drops the oldest lenses nothing on screen uses anymore (keeps memory flat in long sessions). */
+function evict() {
+  if (ready.size <= MAX_LENSES) return;
+  const used = new Set();
+  document.querySelectorAll('[style*="lens-"]').forEach((el) => {
+    const m = el.style.getPropertyValue('--lens').match(/#(lens-\d+)/);
+    if (m) used.add(m[1]);
+  });
+  for (const key of ready.keys()) {
+    if (ready.size <= MAX_LENSES * 0.75) break;
+    const id = idOf.get(key);
+    if (!id || used.has(id)) continue;
+    defs.querySelector(`#${id}`)?.remove();
+    ready.delete(key);
+    idOf.delete(key);
+  }
+}
+
 export function lensFor(W, H, r, opts = {}) {
   defs ||= document.querySelector('.svg-defs');
-  W = Math.max(8, Math.round(W / 2) * 2);
-  H = Math.max(8, Math.round(H / 2) * 2);
+  const q = opts.round || 2; // size step; bigger steps let similar elements share one lens
+  W = Math.max(8, Math.round(W / q) * q);
+  H = Math.max(8, Math.round(H / q) * q);
   r = Math.round(Math.min(r, W / 2, H / 2));
   const k0 = (opts.k ?? 1) * (Math.min(W, H) < 32 ? 0.4 : 1);
   const tiny = Math.min(W, H) < 32; // e.g. the slider knob: soft lens, no rainbow
   const disperse = !tiny && (opts.disperse ?? W * H < 90_000); // faint rainbow rim only on buttons and bars
   const key = `${W}x${H}r${r}k${k0}${disperse ? 'd' : ''}`;
-  if (ready.has(key)) return ready.get(key);
+  if (ready.has(key)) {
+    const hit = ready.get(key);
+    ready.delete(key); // mark as recently used
+    ready.set(key, hit);
+    return hit;
+  }
   const p = (async () => {
     const url = lensMap(W, H, r);
     const pre = new Image();
@@ -100,9 +127,11 @@ export function lensFor(W, H, r, opts = {}) {
       'beforeend',
       `<filter id="${id}" x="0" y="0" width="${W}" height="${H}" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse" color-interpolation-filters="sRGB">${body}</filter>`,
     );
+    idOf.set(key, id);
     return id;
   })();
   ready.set(key, p);
+  p.then(evict);
   return p;
 }
 

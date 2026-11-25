@@ -785,3 +785,57 @@ button.set-row:active, label.set-row:active { background: var(--hover); }
 
 /* Data saver: no moving backdrop or drips */
 [data-saver] .art-layer, [data-saver] .art-melt canvas { animation: none; }
+
+/* ============================================================
+   Full-screen lyrics: less bland
+   ============================================================ */
+/* a soft, slowly drifting color glow from the album palette; gray covers get a gentle tint too */
+.immersive::before {
+  content: ''; position: absolute; inset: -20%; z-index: -1; pointer-events: none; opacity: 0.55;
+  background:
+    radial-gradient(40% 35% at 20% 25%, color-mix(in srgb, var(--a1) 70%, transparent), transparent 70%),
+    radial-gradient(45% 40% at 80% 60%, color-mix(in srgb, var(--a2) 60%, transparent), transparent 70%),
+    radial-gradient(35% 30% at 40% 90%, color-mix(in srgb, var(--a3) 55%, transparent), transparent 70%);
+  mix-blend-mode: soft-light; will-change: transform;
+  animation: drift 26s ease-in-out infinite alternate;
+}
+@keyframes drift { 0% { transform: translate3d(-4%, -3%, 0) rotate(0deg); } 100% { transform: translate3d(4%, 3%, 0) rotate(8deg); } }
+[data-saver] .immersive::before { animation: none; }
+/* depth: lines further from the sung one are softly out of focus, like Apple Music */
+.lyrics-box.big .lyric:not(.active) { filter: blur(calc(min(var(--d), 4) * 0.55px)); transition: opacity 0.5s, color 0.5s, filter 0.6s; }
+.lyrics-box.big .lyric.next { filter: none; }
+.lyric.next { opacity: 0.85; color: var(--text-2); }
+[data-saver] .lyrics-box.big .lyric:not(.active) { filter: none; }
+.imm-times { margin: -2px 2px 2px; font-size: 11.5px; }
+.imm-head { box-shadow: inset 1.5px 1.5px 1px -1px rgba(255, 255, 255, 0.7), inset -1.5px -1.5px 1px -1px rgba(255, 255, 255, 0.32), 0 12px 32px -14px rgba(0, 0, 0, 0.5); }
+
+/* ============================================================
+   Mix maker
+   ============================================================ */
+.mix-card { display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 12px 16px 12px 12px; border-radius: 24px; text-decoration: none; color: var(--text); }
+.mix-card > span:nth-child(2) { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.mix-card b { font-size: 16px; font-weight: 600; }
+.mix-card small { font-size: 13px; color: var(--text-2); }
+.mix-card > svg { width: 18px; height: 18px; color: var(--text-3); }
+.mix-orb { width: 48px; height: 48px; flex: none; display: grid; place-items: center; border-radius: 50%; color: #fff;
+  background: radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.7), transparent 30%), linear-gradient(135deg, var(--c1), var(--c2) 55%, var(--c3)); box-shadow: 0 8px 22px -8px var(--c2); }
+.mix-orb svg { width: 22px; height: 22px; }
+.mix-head { padding-top: calc(var(--sat) + 52px); }
+.mix-head .page-title { margin: 2px 0 6px; }
+.mix-head .muted { margin: 0 0 18px; }
+.mix-size { margin: 16px 0 12px; }
+.pill-white.wide { width: 100%; }
+.mix-result { margin-top: 26px; }
+.mix-result h2 { margin: 4px 0 14px; font-size: 26px; }
+.mix-result .coll-actions { justify-content: flex-start; margin: 0 0 12px; }
+.center { text-align: center; }
+
+/* ============================================================
+   Equalizer
+   ============================================================ */
+.eq-head { display: flex; align-items: center; justify-content: space-between; }
+.eq-head .toggle { margin: 0; }
+.eq-bands { display: flex; justify-content: space-between; gap: 6px; margin: 18px 0 6px; padding: 12px 6px; border-radius: 22px; background: var(--hover); }
+.eq-band { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-2); }
+.eq-band em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--text); font-size: 12px; }
+.eq-band input[type='range'] { writing-mode: vertical-lr; direction: rtl; width: 6px; height: 150px; }

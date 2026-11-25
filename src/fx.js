@@ -178,6 +178,7 @@ export function initFX(settings) {
         ptr.y = e.clientY;
         ptr.moved = true;
         ptr.inside = true;
+        kick();
       },
       { passive: true },
     );
@@ -214,6 +215,21 @@ export function initFX(settings) {
       if (!b.pop && Math.hypot(b.x - e.clientX, b.y - e.clientY) < b.r + 6) b.pop = 1;
     }
   });
+
+  // The loop only runs while something is actually moving, then goes to sleep (saves battery).
+  let running = false;
+  function kick() {
+    if (running) return;
+    running = true;
+    t0 = performance.now();
+    requestAnimationFrame(frame);
+  }
+  const busy = () =>
+    pulse > 0.002 ||
+    cfg.backdrop === 'aurora' ||
+    bubbles.length > 0 ||
+    canvasDirty ||
+    (finePointer && (Math.abs(ptr.sx - ptr.x) > 0.5 || Math.abs(ptr.sy - ptr.y) > 0.5 || ptr.moved));
 
   let t0 = performance.now();
   function frame(now) {
@@ -296,17 +312,19 @@ export function initFX(settings) {
       ctx.clearRect(0, 0, W, H);
       canvasDirty = false;
     }
-    requestAnimationFrame(frame);
+    if (busy()) requestAnimationFrame(frame);
+    else running = false;
   }
 
   return {
     start() {
       syncCount();
-      requestAnimationFrame(frame);
+      kick();
     },
     configure(s) {
       cfg = s;
       syncCount();
+      kick();
     },
     setColors(colors) {
       sprites = colors.map((c) => bubbleSprite(c));
@@ -325,6 +343,7 @@ export function initFX(settings) {
     },
     pulse(n = 1) {
       if (cfg.motion) pulse = clamp(pulse + n, 0, 1);
+      kick();
     },
     burst(x, y, n = 4) {
       if (!cfg.bubbles || !cfg.motion) return;
@@ -333,6 +352,7 @@ export function initFX(settings) {
         b.vy = -1 - Math.random() * 2;
         bubbles.push(b);
       }
+      kick();
     },
   };
 }

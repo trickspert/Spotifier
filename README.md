@@ -55,6 +55,8 @@ Open **http://127.0.0.1:5173**, paste your Client ID, and connect. On a computer
 - **Sleep timer:** ⋯ → Sleep timer (15–60 minutes, or the end of the song).
 - Full-screen lyrics keep your screen on, and the controls fade away until you touch the screen.
 - **About the artist:** scroll down in Now Playing for the artist's photo, bio (from Wikipedia), genres, followers when Spotify provides them, and the album the song is from. The play queue is under **⋯ → Up next**.
+- **Mix maker:** on Home tap **Make a mix**, describe a vibe ("late night drive", "2000s throwback gym") and get a playlist to play or save to Spotify. It works out of the box. For AI picks, add your own Anthropic API key under **You → Mix maker → AI picks with Claude**. The key stays on your phone, and each mix costs a few cents on your Anthropic account. Saving a mix needs playlist access, so if you connected before version 1.7, disconnect and connect once more.
+- **Equalizer (Android):** You → Playback → Equalizer, with presets and per-band sliders. It uses Android's system equalizer, which some phones ignore; **Phone equalizer** opens your phone's own (on Samsung: Sound quality and effects).
 - **You tab = Settings:** playback (where music starts, skip explicit songs, sleep timer, devices), lyrics, gestures, data saver and more. The look (themes, glass, titles, lyric style) is under **You → Customize the look**.
 
 ## If something goes wrong

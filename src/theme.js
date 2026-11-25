@@ -143,18 +143,25 @@ export function hslToHex(h, s, l) {
 
 const paletteCache = new Map();
 
+// One decoded copy of each cover, shared by the color and brightness checks.
+const corsImages = new Map();
+function corsImage(url) {
+  if (!corsImages.has(url)) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = url;
+    corsImages.set(url, img.decode().then(() => img, () => null));
+    if (corsImages.size > 30) corsImages.delete(corsImages.keys().next().value);
+  }
+  return corsImages.get(url);
+}
+
 /** Pulls three vivid, distinct colors out of an album cover. */
 export async function extractPalette(url) {
   if (!url) return null;
   if (paletteCache.has(url)) return paletteCache.get(url);
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.src = url;
-  try {
-    await img.decode();
-  } catch {
-    return null;
-  }
+  const img = await corsImage(url);
+  if (!img) return null;
   const N = 48;
   const cv = document.createElement('canvas');
   cv.width = cv.height = N;
@@ -202,12 +209,10 @@ const brightCache = new Map();
 export async function artBrightness(url) {
   if (!url) return 0;
   if (brightCache.has(url)) return brightCache.get(url);
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.src = url;
   let v = 0;
   try {
-    await img.decode();
+    const img = await corsImage(url);
+    if (!img) throw new Error('no image');
     const cv = document.createElement('canvas');
     cv.width = cv.height = 24;
     const g = cv.getContext('2d', { willReadFrequently: true });

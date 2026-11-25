@@ -80,3 +80,9 @@ export function hideNowPlaying() {
 export function onNowPlayingAction(cb) {
   Playback?.addListener('action', ({ action, position }) => cb(action, position));
 }
+
+// System equalizer (android/.../EqualizerPlugin.java)
+const Eq = isNative ? registerPlugin('Equalizer') : null;
+export const eqInfo = () => (Eq ? Eq.info() : Promise.resolve({ supported: false, web: true }));
+export const eqSet = (opts) => Eq?.set(opts).catch(() => {});
+export const eqOpenSystem = () => Eq?.openSystem();

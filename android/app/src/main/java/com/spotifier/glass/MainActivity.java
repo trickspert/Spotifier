@@ -7,6 +7,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(PlaybackPlugin.class); // "now playing" notification + keeps music running
+        registerPlugin(EqualizerPlugin.class); // system equalizer
         super.onCreate(savedInstanceState);
     }
 }

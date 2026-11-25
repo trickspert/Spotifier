@@ -13,6 +13,8 @@ const SCOPES = [
   'user-top-read',
   'user-library-read',
   'user-library-modify', // the Save (heart) button
+  'playlist-modify-private', // Mix maker: save a mix as a playlist
+  'playlist-modify-public',
   'playlist-read-private',
   'playlist-read-collaborative',
 ].join(' ');

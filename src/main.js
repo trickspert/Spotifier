@@ -11,9 +11,10 @@ import { DemoPlayer, SpotifyPlayer } from './player.js';
 import { LyricsView, getLyrics, clearLyricsCache } from './lyrics.js';
 import { Spotify, normTrack, bestImage, playlistEntryTrack, setImageSize } from './api.js';
 import { getArtistInfo, clearArtistCache, compactNumber } from './artist.js';
+const mixer = () => import('./mixer.js'); // loaded the first time you make a mix
 import { handleCallback, isLoggedIn, login, logout, getClientId, setClientId, redirectUri, redirectLooksValid } from './auth.js';
 import { demoTracks, demoPlaylists } from './demo.js';
-import { isNative, NATIVE_REDIRECT, onAppUrl, closeBrowser, onBackButton, onResume, minimize, setStatusBar, openSpotifyApp, haptic, setHaptics, openExternal, showNowPlaying, hideNowPlaying, onNowPlayingAction } from './native.js';
+import { isNative, NATIVE_REDIRECT, onAppUrl, closeBrowser, onBackButton, onResume, minimize, setStatusBar, openSpotifyApp, haptic, setHaptics, openExternal, showNowPlaying, hideNowPlaying, onNowPlayingAction, eqInfo, eqSet, eqOpenSystem } from './native.js';
 
 if (isNative) document.documentElement.classList.add('native');
 
@@ -151,7 +152,7 @@ function makeRange(el, { onInput, onCommit, kind }) {
 for (const el of $$('.progress'))
   makeRange(el, {
     kind: 'seek',
-    onInput: (v) => ($('.t-pos').textContent = fmt(v * S.player.state.duration)),
+    onInput: (v) => $$('.t-pos').forEach((el) => (el.textContent = fmt(v * S.player.state.duration))),
     onCommit: (v) => S.player.seek(v * S.player.state.duration),
   });
 makeRange($('.volume'), { kind: 'volume', onInput: (v) => S.player.setVolume(v), onCommit: (v) => S.player.setVolume(v) });
@@ -283,7 +284,6 @@ async function onTrack(t) {
   markPlayingRows();
   fx.pulse(1);
   loadLyrics(t);
-  refreshQueue();
   checkSaved();
   if (newArt) artBrightness(t?.image).then((b) => t?.id === S.trackId && document.documentElement.classList.toggle('art-bright', b > 0.6));
   const pal = t?.image ? await extractPalette(t.image) : null;
@@ -576,6 +576,7 @@ async function render(scrollTop = false) {
   if (r.name === 'library') return renderLibrary();
   if (r.name === 'search') return renderSearch();
   if (r.name === 'settings') return renderSettingsPage();
+  if (r.name === 'mix') return renderMix();
   if (['liked', 'playlist', 'album'].includes(r.name)) return renderCollection(r.name, r.id, my);
   return renderHome();
 }
@@ -624,6 +625,7 @@ function renderHome() {
             .join('')}</div>`
         : ''
     }
+    ${chip === 'all' ? `<a class="mix-card lg" href="#/mix"><span class="mix-orb">${icons.sparkle}</span><span><b>Make a mix</b><small>Describe a vibe, get a playlist</small></span>${icons.chevronRight}</a>` : ''}
     ${
       chip !== 'playlists' && S.recent.length
         ? `<h2 class="section">Jump back in</h2>
@@ -1002,6 +1004,149 @@ function renderSettings() {
     <button class="pill wide" data-act="reset-look">Reset the look</button>`;
 }
 
+// ---------- Mix maker ----------
+const AI_KEY = 'spotifier.anthropicKey';
+const getAiKey = () => {
+  try {
+    return localStorage.getItem(AI_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+S.mixSize = 25;
+let lastMix = null;
+
+function renderMix() {
+  const ai = !!getAiKey() && !isDemo();
+  setView(`
+    <button class="circle lg back-fab" data-act="back" aria-label="Back" data-icon="back"></button>
+    <div class="mix-head">
+      <span class="kicker">${ai ? 'AI picks · Claude' : 'Smart mix'}</span>
+      <h1 class="title page-title">Mix maker</h1>
+      <p class="muted">Describe a vibe, a moment or a genre, and get a playlist.</p>
+    </div>
+    <label class="search-field lg"><span data-icon="sparkle"></span><input id="mix-input" placeholder="Late night drive, rainy day indie…" autocomplete="off" value="${esc(S.mixPrompt || '')}" /></label>
+    <div class="chips-row">${['Late night drive', 'Gym hype', 'Rainy day indie', '2000s throwback', 'Focus beats', 'Sad but hopeful']
+      .map((i) => `<button class="tag" data-idea="${esc(i)}">${esc(i)}</button>`)
+      .join('')}</div>
+    <div class="seg lg mix-size" role="group">${[15, 25, 40].map((n) => `<button data-mix-size="${n}" class="${S.mixSize === n ? 'on' : ''}">${n} songs</button>`).join('')}</div>
+    <button class="pill-white wide" data-act="make-mix">${icons.sparkle}<span>Make mix</span></button>
+    ${ai || isDemo() ? '' : '<p class="fine">Want AI picks? Add an Anthropic API key in You → Mix maker, and Claude chooses the songs.</p>'}
+    <div id="mix-result">${lastMix ? mixResultHTML(lastMix) : ''}</div>`);
+  const input = $('#mix-input');
+  input.addEventListener('input', () => (S.mixPrompt = input.value));
+  input.addEventListener('keydown', (e) => e.key === 'Enter' && actions['make-mix']());
+}
+
+function mixResultHTML(m) {
+  const by = { ai: 'Picked by Claude', smart: 'Smart mix', demo: 'Demo mix' }[m.engine];
+  return `<div class="mix-result">
+    <span class="kicker">${by} · ${m.tracks.length} songs</span>
+    <h2 class="title">${esc(m.title)}</h2>
+    <div class="coll-actions">
+      <button class="pill-white" data-act="play-mix">${icons.play}<span>Play</span></button>
+      <button class="pill" data-act="save-mix">Save to Spotify</button>
+      <button class="circle lg small" data-act="make-mix" aria-label="Make another">${icons.shuffle}</button>
+    </div>
+    <div class="list rows">${m.tracks.map((t, i) => trackRow(t, i, { attr: 'data-mi' })).join('')}</div>
+  </div>`;
+}
+
+function aiKeyMenu() {
+  const has = !!getAiKey();
+  showModal(`<div class="modal-card lg">
+    <span class="kicker">Mix maker</span>
+    <h2 class="title">AI picks with Claude</h2>
+    <p class="muted">Optional. With your own Anthropic API key, Claude chooses the songs for your mixes. Without one, the built-in smart mix is used.</p>
+    <ol class="steps">
+      <li>Get a key at <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> (Settings → API keys).</li>
+      <li>Paste it here. It stays on this device, and requests go straight to Anthropic.</li>
+      <li>Each mix costs a few cents, billed to your Anthropic account.</li>
+    </ol>
+    <label class="field"><span>Anthropic API key</span><input id="ai-key" type="password" placeholder="${has ? 'Saved (paste to replace)' : 'sk-ant-…'}" autocomplete="off" spellcheck="false" /></label>
+    <div class="modal-actions">
+      <button class="pill-white" data-act="save-ai-key">Save</button>
+      ${has ? '<button class="pill" data-act="remove-ai-key">Remove key</button>' : ''}
+      <button class="pill" data-act="close-modal">Close</button>
+    </div>
+  </div>`);
+}
+
+// ---------- equalizer ----------
+const EQ_PRESETS = {
+  Flat: [[60, 0], [16000, 0]],
+  'Bass boost': [[60, 6], [150, 5], [400, 1.5], [1000, 0], [16000, 0]],
+  'Bass & treble': [[60, 5], [250, 2], [1000, -1], [4000, 2], [14000, 5]],
+  Vocal: [[60, -2], [250, -1], [1000, 3], [3000, 4], [14000, 1]],
+  Treble: [[60, 0], [1000, 0], [4000, 3], [14000, 6]],
+  Acoustic: [[60, 2], [250, 1], [1000, 1.5], [4000, 2.5], [14000, 2]],
+};
+/** dB for a frequency on a preset curve (interpolated on a log scale). */
+function curveAt(points, hz) {
+  if (hz <= points[0][0]) return points[0][1];
+  for (let i = 1; i < points.length; i++) {
+    const [f1, d1] = points[i - 1], [f2, d2] = points[i];
+    if (hz <= f2) return d1 + ((d2 - d1) * Math.log(hz / f1)) / Math.log(f2 / f1);
+  }
+  return points[points.length - 1][1];
+}
+let eqState = null;
+const hzLabel = (hz) => (hz >= 1000 ? `${+(hz / 1000).toFixed(hz >= 10000 ? 0 : 1)}k` : `${hz}`);
+
+async function eqMenu() {
+  const info = await eqInfo().catch(() => ({ supported: false }));
+  if (!info.supported) {
+    return showModal(`<div class="modal-card lg menu">
+      <h2 class="title">Equalizer</h2>
+      <p class="muted">${info.web ? 'The equalizer is part of the Android app.' : 'This phone doesn’t let apps use the system equalizer, but your phone’s own equalizer works for Spotifier too.'}</p>
+      ${info.web ? '' : '<button class="pill-white wide" data-act="eq-system">Open phone equalizer</button>'}
+      <button class="pill wide" data-act="close-modal">Close</button></div>`);
+  }
+  const saved = S.settings.eqLevels;
+  const levels = saved?.length === info.bands.length ? saved : info.bands.map((b) => b.level);
+  eqState = { ...info, levels, enabled: !!S.settings.eqEnabled };
+  showModal(`<div class="modal-card lg eq">
+    <div class="eq-head"><h2 class="title">Equalizer</h2>
+      <label class="toggle"><input type="checkbox" data-eq-toggle ${eqState.enabled ? 'checked' : ''} /><i></i></label></div>
+    <div class="chips-row">${Object.keys(EQ_PRESETS).map((k) => `<button class="tag" data-eq-preset="${k}">${k}</button>`).join('')}</div>
+    <div class="eq-bands">${info.bands
+      .map(
+        (b, i) => `<label class="eq-band"><em data-eq-db="${i}">${(levels[i] / 100).toFixed(1)}</em>
+          <input type="range" data-band="${i}" min="${info.min}" max="${info.max}" step="50" value="${levels[i]}" aria-label="${hzLabel(b.hz)} Hz" />
+          <span>${hzLabel(b.hz)}</span></label>`,
+      )
+      .join('')}</div>
+    <p class="fine">Works on everything your phone plays. Not hearing a difference? Some phones ignore it; use your phone’s own equalizer instead.</p>
+    <div class="modal-actions"><button class="pill" data-act="eq-system">Phone equalizer</button><button class="pill-white" data-act="close-modal">Done</button></div>
+  </div>`);
+}
+function applyEq() {
+  if (!eqState) return;
+  S.settings.eqLevels = eqState.levels;
+  S.settings.eqEnabled = eqState.enabled;
+  saveSettings(S.settings);
+  eqSet({ levels: eqState.levels, enabled: eqState.enabled });
+}
+let eqFrame = 0;
+document.addEventListener('input', (e) => {
+  const band = e.target.closest?.('[data-band]');
+  if (band && eqState) {
+    const i = Number(band.dataset.band);
+    eqState.levels[i] = Number(band.value);
+    $(`[data-eq-db="${i}"]`).textContent = (band.value / 100).toFixed(1);
+    if (!eqState.enabled) {
+      eqState.enabled = true;
+      $('[data-eq-toggle]').checked = true;
+    }
+    cancelAnimationFrame(eqFrame);
+    eqFrame = requestAnimationFrame(applyEq);
+  }
+  if (e.target.matches?.('[data-eq-toggle]') && eqState) {
+    eqState.enabled = e.target.checked;
+    applyEq();
+  }
+});
+
 // ---------- Settings page (You tab): everything that isn't about the look ----------
 function renderSettingsPage() {
   const s = S.settings;
@@ -1026,8 +1171,15 @@ function renderSettingsPage() {
       <div class="set-row column"><span class="set-text"><b>Start music on</b><small>When another device is already playing</small></span>
         <div class="seg lg" role="group"><button data-seg="playOn" data-val="here" class="${s.playOn !== 'active' ? 'on' : ''}">This device</button><button data-seg="playOn" data-val="active" class="${s.playOn === 'active' ? 'on' : ''}">Device that’s playing</button></div></div>
       ${tog('skipExplicit', 'Skip explicit songs')}
+      ${link('eq', 'Equalizer', S.settings.eqEnabled ? 'On' : 'Off')}
       ${link('sleep', 'Sleep timer', sleepState)}
       ${isDemo() ? '' : link('device', 'Devices')}
+    </div>
+
+    <h2 class="group-title">Mix maker</h2>
+    <div class="group">
+      ${link('mix', 'Make a mix')}
+      ${isDemo() ? '' : link('ai-key', 'AI picks with Claude', getAiKey() ? 'On' : 'Off')}
     </div>
 
     <h2 class="group-title">Lyrics</h2>
@@ -1145,6 +1297,78 @@ const actions = {
     location.hash = `#/album/${t.albumId}`;
   },
   'toggle-bio': (el) => el.classList.toggle('open'),
+  mix: () => {
+    closeModal();
+    location.hash = '#/mix';
+  },
+  'make-mix': async () => {
+    const prompt = ($('#mix-input')?.value || S.mixPrompt || '').trim();
+    if (!prompt) return toast('Describe a vibe first, like “late night drive”.');
+    S.mixPrompt = prompt;
+    const out = $('#mix-result');
+    if (out) out.innerHTML = `<div class="loader"><i></i><i></i><i></i></div><p class="muted center">${getAiKey() && !isDemo() ? 'Claude is picking songs…' : 'Mixing…'}</p>`;
+    try {
+      const { makeMix } = await mixer();
+      lastMix = await makeMix(prompt, { size: S.mixSize, apiKey: isDemo() ? '' : getAiKey(), demo: isDemo(), demoTracks: demoTracks() });
+      if (!lastMix.tracks.length) throw new Error('Couldn’t find songs for that. Try other words.');
+      if (route().name === 'mix') {
+        $('#mix-result').innerHTML = mixResultHTML(lastMix);
+        hydrateIcons($('#mix-result'));
+        markPlayingRows();
+      }
+    } catch (e) {
+      if ($('#mix-result')) $('#mix-result').innerHTML = '';
+      toast(e.message || 'Couldn’t make a mix.', 'error', 6000);
+    }
+  },
+  'play-mix': () => lastMix && playFrom(lastMix.tracks, 0, null, lastMix.title),
+  'save-mix': async () => {
+    if (!lastMix) return;
+    if (isDemo()) return toast('Connect Spotify to save mixes.');
+    try {
+      const { saveMix } = await mixer();
+      await saveMix(lastMix.title, lastMix.tracks);
+      toast('Saved to your Spotify library ♥', 'ok');
+      loadLibrary();
+    } catch (e) {
+      toast(
+        [401, 403].includes(e.status)
+          ? 'Spotify didn’t allow saving. Disconnect and connect again to give Spotifier playlist access. Some apps in Spotify’s Development Mode can’t create playlists; you can still play the mix.'
+          : e.message,
+        'error',
+        8000,
+      );
+    }
+  },
+  'ai-key': aiKeyMenu,
+  'save-ai-key': () => {
+    const v = $('#ai-key').value.trim();
+    if (!/^sk-ant-/.test(v)) return toast('That doesn’t look like an Anthropic API key (it starts with sk-ant-).', 'error');
+    try {
+      localStorage.setItem(AI_KEY, v);
+    } catch {
+      /* ignore */
+    }
+    closeModal();
+    toast('Saved. Mixes are now picked by Claude.', 'ok');
+    if (route().name === 'settings') renderSettingsPage();
+    if (route().name === 'mix') renderMix();
+  },
+  'remove-ai-key': () => {
+    try {
+      localStorage.removeItem(AI_KEY);
+    } catch {
+      /* ignore */
+    }
+    closeModal();
+    toast('Key removed. Mixes use the built-in smart mix.');
+    if (route().name === 'settings') renderSettingsPage();
+  },
+  eq: eqMenu,
+  'eq-system': async () => {
+    const r = await eqOpenSystem()?.catch(() => null);
+    if (r?.opened === 'sound-settings') toast('Opened Sound settings. Look for “Sound quality and effects” → Equalizer.');
+  },
   'clear-cache': () => {
     clearLyricsCache();
     clearArtistCache();
@@ -1204,6 +1428,26 @@ document.addEventListener('click', (e) => {
     return actions[act.dataset.act]?.(act, e);
   }
   if ((el = t.closest('[data-offset]'))) return setLyricOffset(Number(el.dataset.offset));
+  if ((el = t.closest('[data-mi]'))) return playFrom(lastMix.tracks, Number(el.dataset.mi), null, lastMix.title);
+  if ((el = t.closest('[data-idea]'))) {
+    $('#mix-input').value = S.mixPrompt = el.dataset.idea;
+    return actions['make-mix']();
+  }
+  if ((el = t.closest('[data-mix-size]'))) {
+    S.mixSize = Number(el.dataset.mixSize);
+    return $$('[data-mix-size]').forEach((b) => b.classList.toggle('on', b === el));
+  }
+  if ((el = t.closest('[data-eq-preset]')) && eqState) {
+    const pts = EQ_PRESETS[el.dataset.eqPreset];
+    eqState.levels = eqState.bands.map((b) => Math.round(clamp(curveAt(pts, b.hz) * 100, eqState.min, eqState.max) / 50) * 50);
+    eqState.enabled = true;
+    $$('[data-band]').forEach((r, i) => {
+      r.value = eqState.levels[i];
+      $(`[data-eq-db="${i}"]`).textContent = (eqState.levels[i] / 100).toFixed(1);
+    });
+    $('[data-eq-toggle]').checked = true;
+    return applyEq();
+  }
   if ((el = t.closest('[data-sleep]'))) return setSleep(el.dataset.sleep);
   if ((el = t.closest('[data-chip]'))) {
     S.chip = el.dataset.chip;
@@ -1318,13 +1562,14 @@ function loop(now) {
     const sec = Math.floor(pos / 1000);
     if (sec !== lastSec) {
       lastSec = sec;
-      if (!ranges.some((r) => r.kind === 'seek' && r.dragging)) $('.t-pos').textContent = fmt(pos);
-      $('.t-left').textContent = `-${fmt(Math.max(0, dur - pos))}`;
+      if (!ranges.some((r) => r.kind === 'seek' && r.dragging)) $$('.t-pos').forEach((el) => (el.textContent = fmt(pos)));
+      $$('.t-left').forEach((el) => (el.textContent = `-${fmt(Math.max(0, dur - pos))}`));
     }
     if (immersiveOpen()) lyImm.update(pos);
     else if (playerOpen()) lyMain.update(pos);
   }
-  requestAnimationFrame(loop);
+  if (!p || p.state.paused) setTimeout(() => requestAnimationFrame(loop), 200);
+  else requestAnimationFrame(loop);
 }
 
 // ---------- gestures ----------
@@ -1389,10 +1634,12 @@ swipeToClose($('#immersive'), { canStart: (e) => !e.target.closest('.lyrics-box'
     meta.style.translate = '';
     if (S.settings.swipeSkip !== false && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
       swallowClick = true;
+      setTimeout(() => (swallowClick = false), 450);
       haptic('Medium');
       dx < 0 ? S.player.next() : S.player.prev();
     } else if (dy < -40 && Math.abs(dy) > Math.abs(dx)) {
       swallowClick = true;
+      setTimeout(() => (swallowClick = false), 450);
       openPlayer();
     }
   }, { passive: true });
@@ -1477,6 +1724,7 @@ async function boot() {
   fx.start();
   initLens({ refraction: S.settings.refraction, supported: supportsRefraction() });
   wireNative();
+  if (isNative && S.settings.eqEnabled && S.settings.eqLevels?.length) eqSet({ levels: S.settings.eqLevels, enabled: true });
   let error;
   try {
     if (await handleCallback()) toast('Connected to Spotify', 'ok');

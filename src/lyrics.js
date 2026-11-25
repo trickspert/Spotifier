@@ -270,6 +270,7 @@ export class LyricsView {
       this.nodes.forEach((n, k) => {
         n.classList.toggle('active', k === i);
         n.classList.toggle('past', k < i);
+        n.classList.toggle('next', k === i + 1);
         n.style.setProperty('--d', Math.min(6, Math.abs(k - Math.max(i, 0))));
         if (k !== i) n.style.removeProperty('--p');
       });
@@ -332,7 +333,7 @@ export class LyricsView {
     const r = Math.min(h / 2, 30);
     const my = ++this.glassReq;
     // get the lens map ready first so the glass never shows a half-loaded frame
-    const id = await lensFor(w, h, r, { k: 0.2, disperse: false }).catch(() => null);
+    const id = await lensFor(w, h, r, { k: 0.2, disperse: false, round: 12 }).catch(() => null);
     if (my !== this.glassReq) return;
     const prev = g.classList.contains('on') ? this.box : null;
     this.box = box;
