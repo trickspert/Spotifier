@@ -1216,6 +1216,8 @@ function renderSettingsPage() {
 
     <h2 class="group-title">Lyrics</h2>
     <div class="group lg">
+      <div class="set-row column"><span class="set-text"><b>Lyric colors</b><small>The glow on each word</small></span>
+        <div class="seg lg" role="group"><button data-seg="lyricColors" data-val="album" class="${s.lyricColors !== 'theme' ? 'on' : ''}">Album cover</button><button data-seg="lyricColors" data-val="theme" class="${s.lyricColors === 'theme' ? 'on' : ''}">My theme</button></div></div>
       ${tog('wordSync', 'Word-by-word highlight', 'Off lights up the whole line at once')}
       ${tog('keepAwake', 'Keep screen on in full-screen lyrics')}
       ${link('lyrics-timing', 'Lyrics timing for this song')}

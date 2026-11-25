@@ -43,6 +43,7 @@ export const DEFAULTS = {
   haptics: true,
   dataSaver: false, // smaller covers, still backdrop
   localAi: false, // Mix maker: on-device AI (Qwen 3) understands requests
+  lyricColors: 'album', // lyric highlight colors: 'album' (from the cover) or 'theme'
   lyricSize: 1.4,
 };
 
@@ -94,6 +95,9 @@ export function applyTheme(s, palette) {
   const set = (k, v) => root.style.setProperty(k, v);
   ui.forEach((c, i) => set(`--c${i + 1}`, c));
   aurora.forEach((c, i) => set(`--a${i + 1}`, c));
+  // lyrics take the song's cover colors (its main color first), unless you pick your theme colors
+  const pal = palette?.length === 3 ? palette : null;
+  (s.lyricColors !== 'theme' && pal ? pal : ui).forEach((c, i) => set(`--l${i + 1}`, c));
   set('--bgA', s.bgA);
   set('--bgB', s.bgB);
   set('--blur', `${s.blur}px`);
